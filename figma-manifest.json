@@ -1,0 +1,870 @@
+{
+  "figmaFileKey": "ybDQ62Q6oBo1W8HkDJyJV4",
+  "sourceUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4",
+  "frames": [
+    {
+      "number": 1,
+      "name": "Projects & Create",
+      "theme": "Night",
+      "section": "01-core",
+      "nodeId": "1:2",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=1-2",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 1,
+      "name": "Projects & Create",
+      "theme": "Day",
+      "section": "01-core",
+      "nodeId": "3:2",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=3-2",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 2,
+      "name": "Director Assistant",
+      "theme": "Night",
+      "section": "01-core",
+      "nodeId": "1:29",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=1-29",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 2,
+      "name": "Director Assistant",
+      "theme": "Day",
+      "section": "01-core",
+      "nodeId": "3:29",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=3-29",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 3,
+      "name": "Character Library",
+      "theme": "Night",
+      "section": "01-core",
+      "nodeId": "1:58",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=1-58",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 3,
+      "name": "Character Library",
+      "theme": "Day",
+      "section": "01-core",
+      "nodeId": "3:58",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=3-58",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 4,
+      "name": "Character Mirror Capture",
+      "theme": "Night",
+      "section": "01-core",
+      "nodeId": "1:90",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=1-90",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 4,
+      "name": "Character Mirror Capture",
+      "theme": "Day",
+      "section": "01-core",
+      "nodeId": "3:90",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=3-90",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 5,
+      "name": "Individual Character Editor",
+      "theme": "Night",
+      "section": "01-core",
+      "nodeId": "1:152",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=1-152",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 5,
+      "name": "Individual Character Editor",
+      "theme": "Day",
+      "section": "01-core",
+      "nodeId": "3:152",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=3-152",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 6,
+      "name": "Scene Builder & Storyboard",
+      "theme": "Night",
+      "section": "01-core",
+      "nodeId": "1:219",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=1-219",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 6,
+      "name": "Scene Builder & Storyboard",
+      "theme": "Day",
+      "section": "01-core",
+      "nodeId": "3:219",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=3-219",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 7,
+      "name": "Film Editing Studio",
+      "theme": "Night",
+      "section": "01-core",
+      "nodeId": "1:251",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=1-251",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 7,
+      "name": "Film Editing Studio",
+      "theme": "Day",
+      "section": "01-core",
+      "nodeId": "3:251",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=3-251",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 8,
+      "name": "Audio & Music Studio",
+      "theme": "Night",
+      "section": "01-core",
+      "nodeId": "1:319",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=1-319",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 8,
+      "name": "Audio & Music Studio",
+      "theme": "Day",
+      "section": "01-core",
+      "nodeId": "3:319",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=3-319",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 9,
+      "name": "Production & Export",
+      "theme": "Night",
+      "section": "01-core",
+      "nodeId": "1:381",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=1-381",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 9,
+      "name": "Production & Export",
+      "theme": "Day",
+      "section": "01-core",
+      "nodeId": "3:381",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=3-381",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 10,
+      "name": "Mobile Camera Capture",
+      "theme": "Night",
+      "section": "02-mobile-camera",
+      "nodeId": "1:413",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=1-413",
+      "size": {
+        "width": 430,
+        "height": 900
+      }
+    },
+    {
+      "number": 10,
+      "name": "Mobile Camera Capture",
+      "theme": "Day",
+      "section": "02-mobile-camera",
+      "nodeId": "3:413",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=3-413",
+      "size": {
+        "width": 430,
+        "height": 900
+      }
+    },
+    {
+      "number": 11,
+      "name": "Mobile Scene Creator",
+      "theme": "Night",
+      "section": "02-mobile-camera",
+      "nodeId": "1:428",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=1-428",
+      "size": {
+        "width": 430,
+        "height": 900
+      }
+    },
+    {
+      "number": 11,
+      "name": "Mobile Scene Creator",
+      "theme": "Day",
+      "section": "02-mobile-camera",
+      "nodeId": "3:428",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=3-428",
+      "size": {
+        "width": 430,
+        "height": 900
+      }
+    },
+    {
+      "number": 12,
+      "name": "Mobile Character Editing",
+      "theme": "Night",
+      "section": "02-mobile-camera",
+      "nodeId": "1:442",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=1-442",
+      "size": {
+        "width": 430,
+        "height": 900
+      }
+    },
+    {
+      "number": 12,
+      "name": "Mobile Character Editing",
+      "theme": "Day",
+      "section": "02-mobile-camera",
+      "nodeId": "3:442",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=3-442",
+      "size": {
+        "width": 430,
+        "height": 900
+      }
+    },
+    {
+      "number": 13,
+      "name": "Connectors & Open Source Hub",
+      "theme": "Night",
+      "section": "03-connectors",
+      "nodeId": "9:2",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=9-2",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 13,
+      "name": "Connectors & Open Source Hub",
+      "theme": "Day",
+      "section": "03-connectors",
+      "nodeId": "9:92",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=9-92",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 14,
+      "name": "Connector Detail & Permissions",
+      "theme": "Night",
+      "section": "03-connectors",
+      "nodeId": "9:182",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=9-182",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 14,
+      "name": "Connector Detail & Permissions",
+      "theme": "Day",
+      "section": "03-connectors",
+      "nodeId": "9:233",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=9-233",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 15,
+      "name": "AI Provider Routing & Fallback",
+      "theme": "Night",
+      "section": "03-connectors",
+      "nodeId": "9:284",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=9-284",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 15,
+      "name": "AI Provider Routing & Fallback",
+      "theme": "Day",
+      "section": "03-connectors",
+      "nodeId": "9:332",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=9-332",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 16,
+      "name": "Worker & Render Diagnostics",
+      "theme": "Night",
+      "section": "03-connectors",
+      "nodeId": "9:380",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=9-380",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 16,
+      "name": "Worker & Render Diagnostics",
+      "theme": "Day",
+      "section": "03-connectors",
+      "nodeId": "9:433",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=9-433",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 17,
+      "name": "Feature Readiness & Recovery",
+      "theme": "Night",
+      "section": "03-connectors",
+      "nodeId": "9:486",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=9-486",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 17,
+      "name": "Feature Readiness & Recovery",
+      "theme": "Day",
+      "section": "03-connectors",
+      "nodeId": "9:550",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=9-550",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 18,
+      "name": "Mobile Connectors & Jobs",
+      "theme": "Night",
+      "section": "03-connectors",
+      "nodeId": "9:614",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=9-614",
+      "size": {
+        "width": 430,
+        "height": 900
+      }
+    },
+    {
+      "number": 18,
+      "name": "Mobile Connectors & Jobs",
+      "theme": "Day",
+      "section": "03-connectors",
+      "nodeId": "9:635",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=9-635",
+      "size": {
+        "width": 430,
+        "height": 900
+      }
+    },
+    {
+      "number": 19,
+      "name": "Storyboard Sequence & Continuity",
+      "theme": "Night",
+      "section": "04-production",
+      "nodeId": "12:2",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=12-2",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 19,
+      "name": "Storyboard Sequence & Continuity",
+      "theme": "Day",
+      "section": "04-production",
+      "nodeId": "12:68",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=12-68",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 20,
+      "name": "Scene Detail & Approval Handoff",
+      "theme": "Night",
+      "section": "04-production",
+      "nodeId": "12:134",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=12-134",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 20,
+      "name": "Scene Detail & Approval Handoff",
+      "theme": "Day",
+      "section": "04-production",
+      "nodeId": "12:185",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=12-185",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 21,
+      "name": "Music Cue & Scene Alignment",
+      "theme": "Night",
+      "section": "04-production",
+      "nodeId": "12:236",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=12-236",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 21,
+      "name": "Music Cue & Scene Alignment",
+      "theme": "Day",
+      "section": "04-production",
+      "nodeId": "12:323",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=12-323",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 22,
+      "name": "Connected Production Graph",
+      "theme": "Night",
+      "section": "04-production",
+      "nodeId": "12:410",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=12-410",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 22,
+      "name": "Connected Production Graph",
+      "theme": "Day",
+      "section": "04-production",
+      "nodeId": "12:494",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=12-494",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 23,
+      "name": "Final Assembly & Continuity QC",
+      "theme": "Night",
+      "section": "04-production",
+      "nodeId": "12:578",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=12-578",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 23,
+      "name": "Final Assembly & Continuity QC",
+      "theme": "Day",
+      "section": "04-production",
+      "nodeId": "12:628",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=12-628",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 24,
+      "name": "Production System & Object IDs",
+      "theme": "Night",
+      "section": "05-workflows",
+      "nodeId": "16:498",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=16-498",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 24,
+      "name": "Production System & Object IDs",
+      "theme": "Day",
+      "section": "05-workflows",
+      "nodeId": "16:537",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=16-537",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 25,
+      "name": "Prototype Interactions & Handoffs",
+      "theme": "Night",
+      "section": "05-workflows",
+      "nodeId": "16:576",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=16-576",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 25,
+      "name": "Prototype Interactions & Handoffs",
+      "theme": "Day",
+      "section": "05-workflows",
+      "nodeId": "16:615",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=16-615",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 26,
+      "name": "Continuity Rules & Conflict Review",
+      "theme": "Night",
+      "section": "05-workflows",
+      "nodeId": "16:654",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=16-654",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 26,
+      "name": "Continuity Rules & Conflict Review",
+      "theme": "Day",
+      "section": "05-workflows",
+      "nodeId": "16:693",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=16-693",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 27,
+      "name": "Camera to Character End-to-End",
+      "theme": "Night",
+      "section": "05-workflows",
+      "nodeId": "16:732",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=16-732",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 27,
+      "name": "Camera to Character End-to-End",
+      "theme": "Day",
+      "section": "05-workflows",
+      "nodeId": "16:771",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=16-771",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 28,
+      "name": "Performance, Error & Recovery",
+      "theme": "Night",
+      "section": "05-workflows",
+      "nodeId": "16:810",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=16-810",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 28,
+      "name": "Performance, Error & Recovery",
+      "theme": "Day",
+      "section": "05-workflows",
+      "nodeId": "16:849",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=16-849",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 29,
+      "name": "Cursor Implementation Blueprint",
+      "theme": "Night",
+      "section": "06-engineering",
+      "nodeId": "23:2",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-2",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 29,
+      "name": "Cursor Implementation Blueprint",
+      "theme": "Day",
+      "section": "06-engineering",
+      "nodeId": "23:10",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-10",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 30,
+      "name": "Design Tokens & Components",
+      "theme": "Night",
+      "section": "06-engineering",
+      "nodeId": "23:18",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-18",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 30,
+      "name": "Design Tokens & Components",
+      "theme": "Day",
+      "section": "06-engineering",
+      "nodeId": "23:26",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-26",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 31,
+      "name": "Project Schema & Production Graph",
+      "theme": "Night",
+      "section": "06-engineering",
+      "nodeId": "23:34",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-34",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 31,
+      "name": "Project Schema & Production Graph",
+      "theme": "Day",
+      "section": "06-engineering",
+      "nodeId": "23:42",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-42",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 32,
+      "name": "Interactions & Prototype Test Cases",
+      "theme": "Night",
+      "section": "06-engineering",
+      "nodeId": "23:50",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-50",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 32,
+      "name": "Interactions & Prototype Test Cases",
+      "theme": "Day",
+      "section": "06-engineering",
+      "nodeId": "23:58",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-58",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 33,
+      "name": "Camera & Character Capture Contract",
+      "theme": "Night",
+      "section": "06-engineering",
+      "nodeId": "23:66",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-66",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 33,
+      "name": "Camera & Character Capture Contract",
+      "theme": "Day",
+      "section": "06-engineering",
+      "nodeId": "23:74",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-74",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 34,
+      "name": "AI, Audio & Rendering Interfaces",
+      "theme": "Night",
+      "section": "06-engineering",
+      "nodeId": "23:82",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-82",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 34,
+      "name": "AI, Audio & Rendering Interfaces",
+      "theme": "Day",
+      "section": "06-engineering",
+      "nodeId": "23:90",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-90",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 35,
+      "name": "Responsive Layout & Accessibility",
+      "theme": "Night",
+      "section": "06-engineering",
+      "nodeId": "23:98",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-98",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 35,
+      "name": "Responsive Layout & Accessibility",
+      "theme": "Day",
+      "section": "06-engineering",
+      "nodeId": "23:106",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-106",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 36,
+      "name": "QA, Release & Cursor Handoff",
+      "theme": "Night",
+      "section": "06-engineering",
+      "nodeId": "23:114",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-114",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "number": 36,
+      "name": "QA, Release & Cursor Handoff",
+      "theme": "Day",
+      "section": "06-engineering",
+      "nodeId": "23:122",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=23-122",
+      "size": {
+        "width": 1440,
+        "height": 900
+      }
+    }
+  ]
+}
