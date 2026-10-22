@@ -8,7 +8,7 @@ export function NavigationRail() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Destinations" className="flex gap-2 overflow-x-auto bg-rail p-3 lg:w-[218px] lg:flex-col lg:overflow-visible lg:px-3 lg:pt-6">
+    <nav aria-label="Destinations" className="flex gap-2 overflow-x-auto bg-rail p-3 lg:sticky lg:top-0 lg:h-screen lg:w-[218px] lg:flex-col lg:overflow-y-auto lg:px-3 lg:pt-6">
       {DESTINATIONS.map((item) => {
         const active = pathname === item.href;
         return (

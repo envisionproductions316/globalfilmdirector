@@ -13,7 +13,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Global Film Director",
-  description: "Projects, director assistant, and character library",
+  description: "Local film studio for projects, direction, characters, capture, storyboard, edit, audio, export, and connectors.",
 };
 
 const themeBoot = `try{var s=JSON.parse(localStorage.getItem("gfd.studio.v1")||"{}");document.documentElement.dataset.theme=s.theme==="day"?"day":"night"}catch(e){document.documentElement.dataset.theme="night"}`;

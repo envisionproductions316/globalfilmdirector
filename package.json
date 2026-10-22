@@ -2,9 +2,11 @@
   "name": "global-film-director",
   "private": true,
   "scripts": {
-    "dev": "next dev --hostname 127.0.0.1 --port 5180",
-    "build": "next build",
-    "start": "next start --hostname 127.0.0.1 --port 5180"
+    "predev": "node scripts/ensure-next-cache.mjs",
+    "prebuild": "node scripts/ensure-next-cache.mjs",
+    "dev": "node scripts/run-next.mjs dev --hostname 127.0.0.1 --port 5180",
+    "build": "node scripts/run-next.mjs build",
+    "start": "node scripts/run-next.mjs start --hostname 127.0.0.1 --port 5180"
   },
   "dependencies": {
     "next": "^15.5.6",

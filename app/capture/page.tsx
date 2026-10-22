@@ -1,5 +1,5 @@
-import { PendingWorkspace } from "@/components/screens/PendingWorkspace";
+import { CaptureWorkspace } from "@/components/screens/CaptureWorkspace";
 
 export default function Page() {
-  return <PendingWorkspace title="Capture" frame="04 · Character Mirror Capture" />;
+  return <CaptureWorkspace />;
 }

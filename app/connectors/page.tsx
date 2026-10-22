@@ -1,5 +1,5 @@
-import { PendingWorkspace } from "@/components/screens/PendingWorkspace";
+import { ConnectorsWorkspace } from "@/components/screens/ConnectorsWorkspace";
 
 export default function Page() {
-  return <PendingWorkspace title="Connectors" frame="13 · Connectors & Open Source Hub" />;
+  return <ConnectorsWorkspace />;
 }

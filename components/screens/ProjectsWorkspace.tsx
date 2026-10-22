@@ -28,18 +28,20 @@ export function ProjectsWorkspace() {
           type="button"
           className="mt-5 h-9 w-[210px] rounded-[7px] bg-accent text-[13px] font-bold text-on-accent"
           onClick={() => {
-            const error = studio.createProject(prompt);
+            const title = prompt;
+            const error = studio.createProject(title);
             if (error) {
               setMessage(error);
               return;
             }
             setPrompt("");
-            setMessage("");
+            setMessage(`“${title.trim()}” is saved on this device.`);
           }}
         >
           Create production
         </button>
-        {message ? <p className="mt-3 text-[13px] text-muted">{message}</p> : null}
+        <p className="mt-3 text-sm">Active project: {studio.activeProject.title}</p>
+        {message ? <p className="mt-2 text-[13px] text-muted">{message}</p> : null}
       </article>
       <p className="mt-auto pt-6 text-[11px] tracking-wide text-pipeline">
         PROJECT → DIRECTOR → CHARACTERS → SCENES → AUDIO → EDIT → EXPORT

@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { useStudio } from "@/lib/studio";
 
 export function DirectorWorkspace() {
   const studio = useStudio();
+  const [message, setMessage] = useState("");
 
   return (
     <section>
@@ -11,8 +13,21 @@ export function DirectorWorkspace() {
       <p className="mt-2 text-[15px] text-muted">Describe your vision and approve the production plan</p>
       <article className="mt-5 flex min-h-[430px] flex-col gap-4 rounded-[10px] bg-card px-5 py-4">
         <h2 className="m-0 text-base font-bold">Director Conversation</h2>
+        <p className="m-0 text-sm text-muted">Project: {studio.activeProject.title}</p>
         <div className="rounded-[9px] bg-inset px-4 py-4 text-base">
-          I can create the cast, storyboard, camera plan, music and editable scene timeline.
+          <p className="m-0 text-xs font-bold tracking-wide text-muted">Provider unavailable</p>
+          <p className="mt-2 mb-0">APG is not connected. Direction stays on this device. This assistant does not generate a plan.</p>
+        </div>
+        <div className="flex flex-col gap-3">
+          {studio.messages.map((entry) => (
+            <div
+              key={entry.id}
+              className={entry.role === "user" ? "ml-auto w-[86%] rounded-[9px] bg-user px-4 py-4" : "rounded-[9px] bg-inset px-4 py-4"}
+            >
+              <p className="m-0 text-xs font-bold tracking-wide text-muted">{entry.role === "user" ? "You" : "Provider unavailable"}</p>
+              <p className="mt-2 mb-0">{entry.text}</p>
+            </div>
+          ))}
         </div>
         <label className="ml-auto block w-[86%] rounded-[9px] bg-user px-4 py-4 text-ink">
           <span className="sr-only">Direction</span>
@@ -25,10 +40,14 @@ export function DirectorWorkspace() {
         <button
           type="button"
           className="h-9 w-[220px] rounded-[7px] bg-accent text-[13px] font-bold text-on-accent"
-          onClick={studio.saveDirection}
+          onClick={() => {
+            const error = studio.saveDirection();
+            setMessage(error ?? "Saved in this project’s history. APG did not reply.");
+          }}
         >
           Review production plan
         </button>
+        {message ? <p className="m-0 text-[13px] text-muted">{message}</p> : null}
       </article>
       <p className="pt-6 text-[11px] tracking-wide text-pipeline">
         PROJECT → DIRECTOR → CHARACTERS → SCENES → AUDIO → EDIT → EXPORT

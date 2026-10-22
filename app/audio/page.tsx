@@ -1,5 +1,5 @@
-import { PendingWorkspace } from "@/components/screens/PendingWorkspace";
+import { AudioWorkspace } from "@/components/screens/AudioWorkspace";
 
 export default function Page() {
-  return <PendingWorkspace title="Audio" frame="08 · Audio & Music Studio" />;
+  return <AudioWorkspace />;
 }

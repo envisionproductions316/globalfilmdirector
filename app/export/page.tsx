@@ -1,5 +1,5 @@
-import { PendingWorkspace } from "@/components/screens/PendingWorkspace";
+import { ExportWorkspace } from "@/components/screens/ExportWorkspace";
 
 export default function Page() {
-  return <PendingWorkspace title="Export" frame="09 · Production & Export" />;
+  return <ExportWorkspace />;
 }

@@ -1,5 +1,5 @@
-import { PendingWorkspace } from "@/components/screens/PendingWorkspace";
+import { EditWorkspace } from "@/components/screens/EditWorkspace";
 
 export default function Page() {
-  return <PendingWorkspace title="Edit" frame="07 · Film Editing Studio" />;
+  return <EditWorkspace />;
 }
