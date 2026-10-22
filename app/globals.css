@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+:root,
+[data-theme="night"] {
+  --canvas: #080e19;
+  --header: #101d30;
+  --rail: #0d192a;
+  --ink: #f1f6ff;
+  --muted: #9cb3d1;
+  --card: #12233a;
+  --inset: #172d49;
+  --user: #244d89;
+  --active: #214a84;
+  --accent: #3478f6;
+  --on-accent: #f1f6ff;
+  --pipeline: #4f9cf0;
+  --line: rgb(241 246 255 / 16%);
+  color-scheme: dark;
+}
+
+[data-theme="day"] {
+  --canvas: #f4f7fc;
+  --header: #ffffff;
+  --rail: #e9f0fa;
+  --ink: #16273f;
+  --muted: #536982;
+  --card: #ffffff;
+  --inset: #e9f1fd;
+  --user: #d5e6ff;
+  --active: #c6dafa;
+  --accent: #3478f6;
+  --on-accent: #16273f;
+  --pipeline: #4f9cf0;
+  --line: rgb(22 39 63 / 12%);
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-header: var(--header);
+  --color-rail: var(--rail);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-card: var(--card);
+  --color-inset: var(--inset);
+  --color-user: var(--user);
+  --color-active: var(--active);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-pipeline: var(--pipeline);
+  --font-sans: var(--font-inter), "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-inter), "Segoe UI", sans-serif;
+}
