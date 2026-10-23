@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Pipeline } from "@/components/ui/Pipeline";
 import { useStudio } from "@/lib/studio";
 
 export function DirectorWorkspace() {
@@ -59,9 +60,7 @@ export function DirectorWorkspace() {
         </div>
         {message ? <p className="m-0 text-[13px] text-muted">{message}</p> : null}
       </article>
-      <p className="pt-6 text-[11px] tracking-wide text-pipeline">
-        PROJECT → DIRECTOR → CHARACTERS → SCENES → AUDIO → EDIT → EXPORT
-      </p>
+      <Pipeline />
     </section>
   );
 }

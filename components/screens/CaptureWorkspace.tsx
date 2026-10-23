@@ -482,7 +482,14 @@ export function CaptureWorkspace() {
               + Create New Character
             </Link>
           </div>
-          {studio.characters.length === 0 ? <p className="mt-3 text-sm text-muted">Create a character before recording.</p> : null}
+          {studio.characters.length === 0 ? (
+            <p className="mt-3 text-sm text-muted">
+              Create a character before recording.{" "}
+              <Link href="/characters" className="text-accent" onClick={() => studio.setAssetCategory("characters")}>
+                Open Characters
+              </Link>
+            </p>
+          ) : null}
           <label className="mt-4 block text-xs text-muted">
             Take name
             <input className="mt-1 h-9 w-full rounded-md bg-inset px-2 text-sm text-ink" value={takeName} onChange={(event) => setTakeName(event.target.value)} placeholder={character ? `${character.name} take` : "Take"} />
@@ -544,7 +551,22 @@ export function CaptureWorkspace() {
       <article className="mt-4 rounded-[10px] bg-card px-4 py-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="m-0 text-base font-bold">Multiple Characters in This Scene</h2>
-          <select className="h-9 rounded-md bg-inset px-2 text-sm" value={sceneId} onChange={(event) => { setSceneId(event.target.value); studio.selectScene(event.target.value); }}>
+          <select
+            className="h-9 rounded-md bg-inset px-2 text-sm"
+            value={sceneId}
+            onChange={(event) => {
+              const nextScene = event.target.value;
+              setSceneId(nextScene);
+              if (nextScene) studio.selectScene(nextScene);
+              const linked = studio.shots.find((shot) => shot.sceneId === nextScene);
+              if (linked) {
+                setShotId(linked.id);
+                studio.selectShot(linked.id);
+              } else {
+                setShotId("");
+              }
+            }}
+          >
             <option value="">Unassigned scene</option>
             {studio.scenes.map((item) => (
               <option key={item.id} value={item.id}>{item.title}</option>
@@ -589,15 +611,24 @@ export function CaptureWorkspace() {
                 }}
               >
                 <option value="">Unassigned</option>
-                {studio.shots.map((shot) => (
-                  <option key={shot.id} value={shot.id}>{shot.label}</option>
-                ))}
+                {studio.shots
+                  .filter((shot) => !sceneId || shot.sceneId === sceneId)
+                  .map((shot) => (
+                    <option key={shot.id} value={shot.id}>{shot.label}</option>
+                  ))}
               </select>
             </label>
             <button type="button" className={quietClass} disabled={!preview} onClick={retake} data-testid="retake">Retake</button>
             <button type="button" className={buttonClass} disabled={!preview || !character || saving} onClick={() => void saveTake()} data-testid="save-take">{saving ? "Saving" : "Save take"}</button>
             <button type="button" className={buttonClass} disabled={saving || (!preview && !characterTakeId)} onClick={() => void saveAndPlace()} data-testid="add-to-timeline">Add to Timeline</button>
-            <Link href="/edit" className={`${quietClass} inline-flex items-center`} onClick={() => studio.setAssetCategory("media")}>Open in Edit</Link>
+            <Link href="/edit" className={`${quietClass} inline-flex items-center`} onClick={() => studio.setAssetCategory("media")}>
+              Open in Edit{studio.clips.length ? ` (${studio.clips.length})` : ""}
+            </Link>
+            {studio.clips.length > 0 ? (
+              <Link href="/export" className={`${quietClass} inline-flex items-center`}>
+                Export
+              </Link>
+            ) : null}
           </div>
         </div>
         <p className="mt-2 text-sm text-muted" data-testid="capture-message">{message}</p>

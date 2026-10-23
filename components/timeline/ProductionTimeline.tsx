@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { SequencePlayer } from "@/components/timeline/SequencePlayer";
 import { Waveform } from "@/components/timeline/Waveform";
@@ -273,12 +274,29 @@ export function ProductionTimeline({ mode }: { mode: "edit" | "audio" }) {
               </li>
             ))}
             {(studio.assetCategory === "assets" ? studio.assets.length === 0 : studio.takes.length === 0 && studio.assets.length === 0) ? (
-              <li className="text-sm text-muted">{studio.assetCategory === "assets" ? "No imported files in My Assets." : "No recordings or imported files in this project."}</li>
+              <li className="text-sm text-muted">
+                {studio.assetCategory === "assets" ? (
+                  "No imported files in My Assets."
+                ) : (
+                  <>
+                    No recordings yet.{" "}
+                    <Link href="/capture" className="text-accent" onClick={() => studio.setAssetCategory("characters")}>
+                      Open Capture
+                    </Link>{" "}
+                    to record, or import a file above.
+                  </>
+                )}
+              </li>
             ) : null}
           </ul>
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-sm" onClick={() => setMessage(studio.placeScene(studio.selectedSceneId) || "Scene recordings were added.")}>Add scene</button>
             <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-sm" onClick={() => setMessage(studio.placeShot(studio.selectedShotId) || "Shot recordings were added.")}>Add shot</button>
+            {studio.clips.length > 0 ? (
+              <Link href="/export" className="inline-flex h-9 items-center rounded-[7px] bg-accent px-3 text-sm font-bold text-on-accent">
+                Continue to Export
+              </Link>
+            ) : null}
           </div>
         </article>
         <article className="rounded-[10px] bg-card px-4 py-4">

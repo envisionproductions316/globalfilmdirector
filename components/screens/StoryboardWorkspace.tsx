@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { TakePlayer } from "@/components/media/TakePlayer";
 import { ContinuityBoard, GraphBoard, SceneDetail, SequenceBoard } from "@/components/production/Boards";
@@ -15,12 +16,24 @@ export function StoryboardWorkspace() {
 
   return (
     <section>
-      <h1 className="m-0 text-[26px] font-bold">
-        {view === "Sequence" ? "19 · Storyboard Sequence & Continuity" : view === "Scene" ? "20 · Scene Detail & Approval Handoff" : view === "Graph" ? "22 · Connected Production Graph" : view === "Continuity" ? "26 · Continuity Rules & Conflict Review" : "06 · Scene Builder & Storyboard"}
-      </h1>
-      <p className="mt-2 text-[15px] text-muted">
-        {view === "Sequence" ? "Organize scenes into a continuous story. No continuity service is connected." : view === "Scene" ? "Edit a scene and keep its linked notes on this device." : view === "Graph" ? "Track scene, character, and take records for this project." : view === "Continuity" ? "Review conflicts without rewriting approved work." : "Create scenes, shots, locations, and camera movement"}
-      </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="m-0 text-[26px] font-bold">
+            {view === "Sequence" ? "19 · Storyboard Sequence & Continuity" : view === "Scene" ? "20 · Scene Detail & Approval Handoff" : view === "Graph" ? "22 · Connected Production Graph" : view === "Continuity" ? "26 · Continuity Rules & Conflict Review" : "06 · Scene Builder & Storyboard"}
+          </h1>
+          <p className="mt-2 text-[15px] text-muted">
+            {view === "Sequence" ? "Organize scenes into a continuous story. No continuity service is connected." : view === "Scene" ? "Edit a scene and keep its linked notes on this device." : view === "Graph" ? "Track scene, character, and take records for this project." : view === "Continuity" ? "Review conflicts without rewriting approved work." : "Create scenes, shots, locations, and camera movement"}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/capture" className="inline-flex h-9 items-center rounded-[7px] bg-accent px-3 text-sm font-bold text-on-accent" onClick={() => studio.setAssetCategory("characters")}>
+            Record for shot
+          </Link>
+          <Link href="/edit" className="inline-flex h-9 items-center rounded-[7px] bg-inset px-3 text-sm" onClick={() => studio.setAssetCategory("media")}>
+            Open Edit
+          </Link>
+        </div>
+      </div>
       <ViewSwitch views={VIEWS} value={view} onChange={setView} />
       {view === "Shots" ? (
         <article className="mt-5 rounded-[10px] bg-card px-5 py-4">

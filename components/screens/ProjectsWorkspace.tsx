@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Pipeline } from "@/components/ui/Pipeline";
 import { projectTitleFromPrompt, useStudio } from "@/lib/studio";
 
 export function ProjectsWorkspace() {
@@ -79,9 +80,7 @@ export function ProjectsWorkspace() {
           </Link>
         </div>
       </article>
-      <p className="mt-auto pt-6 text-[11px] tracking-wide text-pipeline">
-        PROJECT → DIRECTOR → CHARACTERS → SCENES → AUDIO → EDIT → EXPORT
-      </p>
+      <Pipeline />
     </section>
   );
 }
