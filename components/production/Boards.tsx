@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Timeline } from "@/components/ui/Timeline";
+import { SequencePlayer } from "@/components/timeline/SequencePlayer";
 import { useStudio } from "@/lib/studio";
 
 const buttonClass = "h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent";
@@ -126,7 +126,7 @@ export function SequenceBoard() {
               onClick={() => studio.selectScene(scene.id)}
             >
               <span className="block h-16 rounded-[8px]" style={{ background: scene.color }} />
-              <span className="mt-3 block text-sm font-bold">{scene.title}</span>
+              <span className="mt-3 block text-sm font-bold">{scene.number}. {scene.title}</span>
               <span className="mt-1 block text-xs text-muted">{scene.status}</span>
               <span className="mt-2 flex gap-2">
                 <button type="button" className="rounded bg-card px-2 py-1 text-xs text-ink" onClick={(event) => { event.stopPropagation(); const previous = studio.scenes[studio.scenes.indexOf(scene) - 1]; if (previous) studio.moveScene(scene.id, previous.id); }}>Earlier</button>
@@ -138,8 +138,8 @@ export function SequenceBoard() {
         <div className="mt-4 flex flex-wrap gap-2">
           <button type="button" className={buttonClass} onClick={studio.addScene}>+ Add scene</button>
           <button type="button" className={buttonClass} onClick={() => { setNote("No sequence model is connected. The order was not changed."); studio.recordNote("AI arrange was not run. No sequence model is connected."); }}>AI arrange sequence</button>
-          <button type="button" className={buttonClass} onClick={() => { setNote("Local check only. Character, wardrobe, and voice fields are stored on this device. No continuity service reviewed them."); studio.recordNote("Continuity check stayed on this device. No continuity service is connected."); }}>Check continuity</button>
-          <button type="button" className={buttonClass} onClick={() => { setNote("Approved scenes were marked for Edit on this device. The editor did not import them."); studio.recordNote("Approved scenes were noted for Edit. No editor import ran."); }}>Send approved to Edit</button>
+          <button type="button" className={buttonClass} onClick={() => { const lines = studio.warnings.map((warning) => warning.message); setNote(lines.length ? lines.join(" ") : "Local check found no conflicts. No continuity service reviewed the story."); studio.recordNote(lines.length ? `${lines.length} continuity warning(s) are listed on this device.` : "Local continuity check found no conflicts."); }}>Check continuity</button>
+          <button type="button" className={buttonClass} onClick={() => { const approved = studio.scenes.filter((scene) => scene.status === "Approved"); const linked = studio.takes.find((take) => approved.some((scene) => scene.id === take.sceneId)); const placement = linked ? studio.placeTake(linked.id) : "No saved take is attached to an approved scene."; setNote(placement || `${linked?.name ?? "Take"} is on the shared timeline.`); studio.recordNote(placement || `${linked?.name ?? "Take"} was placed on the timeline.`); }}>Send approved to Edit</button>
         </div>
         {note ? <p className="mt-3 text-sm text-muted">{note}</p> : null}
       </article>
@@ -308,7 +308,10 @@ export function ContinuityBoard() {
                 <button type="button" className={buttonClass} onClick={() => studio.updateScene(warning.sceneId, { characterIds: [...new Set([...(studio.scenes.find((scene) => scene.id === warning.sceneId)?.characterIds ?? []), warning.characterId])] })}>Add character to scene</button>
               ) : null}
               {warning.kind === "take-character" || warning.kind === "missing-media" || warning.kind === "take-scene" ? (
-                <button type="button" className={buttonClass} onClick={() => void studio.deleteTake(warning.takeId)}>Delete take</button>
+                <button type="button" className={buttonClass} onClick={() => { void studio.deleteTake(warning.takeId).then((message) => { if (message) studio.recordNote(message); }); }}>Delete take</button>
+              ) : null}
+              {warning.kind === "clip-take" || warning.kind === "clip-media" ? (
+                <button type="button" className={buttonClass} onClick={() => studio.deleteClip(warning.clipId)}>Remove clip</button>
               ) : null}
             </div>
           </li>
@@ -325,8 +328,13 @@ export function GraphBoard() {
     ["Scenes", studio.scenes.map((scene) => scene.title)],
     ["Characters", studio.characters.map((character) => character.name)],
     ["Performances", studio.takes.map((take) => take.name)],
-    ["Audio", ["Dialogue", "Lead vocal", "Music cues", "Sound effects"]],
-    ["Outputs", ["Storyboard", "Animation", "Final timeline", "Export"]],
+    ["Audio", studio.clips.filter((clip) => clip.track === "dialogue" || clip.track === "voice" || clip.track === "music" || clip.track === "sfx").map((clip) => clip.name)],
+    ["Outputs", [
+      "Storyboard",
+      "No rendered animation",
+      ...(studio.clips.some((clip) => clip.track === "video") ? studio.clips.filter((clip) => clip.track === "video").map((clip) => clip.name) : ["No timeline picture"]),
+      ...studio.jobs.filter((job) => !job.sample).map((job) => job.label),
+    ]],
   ];
   return (
     <div className="mt-4">
@@ -364,18 +372,28 @@ export function CueBoard() {
     <div className="mt-4">
       <article className="rounded-[10px] bg-card px-5 py-4">
         <h2 className="m-0 text-base font-bold">Scene-aligned Music & Sound</h2>
-        <Timeline
-          tracks={[
-            { name: "Scene video", color: "#3a75c4" },
-            { name: "Character motion", color: "#378e94" },
-            { name: "Dialogue", color: "#765db0" },
-            { name: "Lead vocals", color: "#98794c" },
-            { name: "Instrumental", color: "#3a75c4" },
-            { name: "Sound effects", color: "#378e94" },
-            { name: "Captions", color: "#765db0" },
-          ]}
-        />
-        <p className="mt-3 text-[13px] text-muted">Bars are a cue map, not playing audio.</p>
+        <p className="mt-3 text-[13px] text-muted">Cue rows follow the shared timeline. Bars are not a second mix.</p>
+        <ul className="mt-3 list-none space-y-3 p-0">
+          {studio.clips.filter((clip) => clip.track === "music" || clip.track === "sfx" || clip.track === "dialogue" || clip.track === "voice").map((clip) => (
+            <li key={clip.id} className="rounded-[9px] bg-inset px-3 py-3 text-sm">
+              <p className="m-0 font-bold">{clip.name}</p>
+              <label className="mt-2 block text-xs text-muted">
+                Scene
+                <select className="mt-1 h-9 w-full rounded-md bg-card px-2 text-sm text-ink" value={clip.sceneId} onChange={(event) => studio.updateClip(clip.id, { sceneId: event.target.value })}>
+                  <option value="">Unassigned</option>
+                  {studio.scenes.map((scene) => <option key={scene.id} value={scene.id}>{scene.number}. {scene.title}</option>)}
+                </select>
+              </label>
+              <button type="button" className={`${buttonClass} mt-2`} onClick={() => {
+                const sceneId = clip.sceneId || studio.selectedSceneId;
+                const anchor = studio.clips.filter((item) => item.track === "video" && item.sceneId === sceneId).sort((a, b) => a.startMs - b.startMs)[0];
+                studio.moveTimelineClip(clip.id, anchor?.startMs ?? 0, clip.track);
+                setNote(anchor ? `${clip.name} now starts with the scene picture.` : `${clip.name} starts at the beginning. That scene has no picture.`);
+              }}>Align to scene picture</button>
+            </li>
+          ))}
+          {studio.clips.every((clip) => clip.track === "video" || clip.track === "motion" || clip.track === "captions") ? <li className="text-sm text-muted">No dialogue, narration, music, or effects are on the timeline.</li> : null}
+        </ul>
       </article>
       <article className="mt-4 rounded-[10px] bg-card px-5 py-4">
         <h2 className="m-0 text-base font-bold">Cue-to-Scene Mapping</h2>
@@ -386,7 +404,7 @@ export function CueBoard() {
         </ul>
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" className={buttonClass} onClick={() => { setNote("No beat grid is connected. Cues were not moved."); studio.recordNote("Align to beat was not run. No audio engine is connected."); }}>Align to beat</button>
-          <button type="button" className={buttonClass} onClick={() => { setNote("No sequence player is connected."); studio.recordNote("Sequence preview was not played. No audio engine is connected."); }}>Preview full sequence</button>
+          <button type="button" className={buttonClass} onClick={() => { setNote("The shared timeline plays in Edit and Audio. This cue list does not start a separate mix."); studio.recordNote("Cue preview stayed on the shared timeline."); }}>Preview full sequence</button>
           <button type="button" className={buttonClass} onClick={() => { setNote("Cue map saved on this device."); studio.saveLocal(); }}>Save cue map</button>
         </div>
         {note ? <p className="mt-3 text-sm text-muted">{note}</p> : null}
@@ -406,9 +424,16 @@ export function AssemblyBoard() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,0.8fr)]">
         <article className="rounded-[10px] bg-card px-5 py-4">
           <h2 className="m-0 text-base font-bold">Final Assembly Preview</h2>
-          <div className="mt-4 grid min-h-[220px] place-items-center rounded-[9px] bg-[#37456d] p-4 text-center text-[#f1f6ff]">
-            Whole-film playback is not available. No cut has been rendered.
-          </div>
+          {studio.clips.length > 0 ? (
+            <div className="mt-4">
+              <SequencePlayer clips={studio.clips} mix={studio.mix} playheadMs={studio.playheadMs} playing={false} seekRevision={0} onPlayhead={() => undefined} onPlaying={() => undefined} />
+              <p className="mt-3 text-sm text-muted">This is the shared timeline paused at the stored playhead. Transitions are not rendered until you export an MP4.</p>
+            </div>
+          ) : (
+            <div className="mt-4 grid min-h-[220px] place-items-center rounded-[9px] bg-[#37456d] p-4 text-center text-[#f1f6ff]">
+              The timeline has no clips. No cut has been rendered.
+            </div>
+          )}
           <p className="mt-3 text-sm text-muted">Scene transitions and music synchronization are checklist items, not a player.</p>
         </article>
         <article className="rounded-[10px] bg-card px-5 py-4">
@@ -434,8 +459,8 @@ export function AssemblyBoard() {
         <p className="mt-3 text-sm">Scene edits stay in this project. Dependent services are not updated automatically.</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" className={buttonClass} onClick={() => setNote("There is one local copy. No earlier render exists to compare.")}>Compare versions</button>
-          <button type="button" className={buttonClass} onClick={() => { setNote("No QC service ran. Checked items are your manual notes."); studio.recordNote("Continuity QC was not run. No QC service is connected."); }}>Run continuity QC</button>
-          <button type="button" className={buttonClass} onClick={() => { studio.recordLocalExport(); setNote("Export request recorded on this device. No approved cut was rendered."); }}>Export approved cut</button>
+          <button type="button" className={buttonClass} onClick={() => { const count = studio.warnings.length; setNote(count ? `${count} local continuity warning(s). No QC service ran.` : "No local continuity warnings. No QC service ran."); studio.recordNote(count ? `${count} continuity warning(s) remain. No QC service ran.` : "Continuity QC was not run. No local warnings were found."); }}>Run continuity QC</button>
+          <button type="button" className={buttonClass} onClick={() => { setNote("Use Export to encode the shared timeline. This button does not render a cut."); studio.recordNote("Assembly stayed on this device. No encode was started."); }}>Export approved cut</button>
         </div>
         {note ? <p className="mt-3 text-sm text-muted">{note}</p> : null}
       </article>

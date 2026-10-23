@@ -114,7 +114,7 @@ export function CharactersWorkspace() {
     <section>
       <h1 className="m-0 text-[26px] font-bold">03 · Character Library</h1>
       <p className="mt-2 text-[15px] text-muted">Create 2D/3D characters, voices, looks, and identities</p>
-      <p className="mt-2 text-sm text-muted lg:hidden">Open a character to edit DNA, appearance, voice, wardrobe, and scenes in the inspector.</p>
+      <p className="mt-2 text-sm text-muted lg:hidden">Open a character to edit DNA, appearance, voice, wardrobe, scenes, and saved takes.</p>
       <article className="mt-5 rounded-[10px] bg-card px-5 py-4">
         <h2 className="m-0 text-base font-bold">Character Library</h2>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
@@ -131,6 +131,9 @@ export function CharactersWorkspace() {
                 onClick={() => studio.openCharacter(character.id)}
               >
                 {character.name}
+                <span className="mt-1 block text-xs font-normal">
+                  {studio.takes.filter((take) => take.characterId === character.id).length} takes
+                </span>
               </button>
             );
           })}

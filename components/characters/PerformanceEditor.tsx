@@ -19,6 +19,7 @@ export function PerformanceEditor() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [missing, setMissing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [keepWarning, setKeepWarning] = useState("");
 
   useEffect(() => {
     let url = "";
@@ -99,9 +100,17 @@ export function PerformanceEditor() {
               Performance notes
               <textarea className={fieldClass} value={selected.notes} onChange={(event) => patch(selected, { notes: event.target.value })} />
             </label>
-            {confirmDelete ? (
+            {keepWarning ? (
+              <div className="mt-3">
+                <p className="text-sm">{keepWarning}</p>
+                <div className="mt-2 flex gap-2">
+                  <button type="button" className="h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent" onClick={() => { setKeepWarning(""); void studio.deleteTake(selected.id, true); }}>Delete the recording anyway</button>
+                  <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-sm" onClick={() => setKeepWarning("")}>Keep the recording</button>
+                </div>
+              </div>
+            ) : confirmDelete ? (
               <div className="mt-3 flex gap-2">
-                <button type="button" className="h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent" onClick={() => { setConfirmDelete(false); void studio.deleteTake(selected.id); }}>Delete take</button>
+                <button type="button" className="h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent" onClick={() => { void studio.deleteTake(selected.id).then((message) => { setConfirmDelete(false); if (message) setKeepWarning(message); }); }}>Delete take</button>
                 <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-sm" onClick={() => setConfirmDelete(false)}>Cancel</button>
               </div>
             ) : (

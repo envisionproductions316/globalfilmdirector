@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { CharacterProfile } from "@/components/characters/CharacterProfile";
 import { useStudio } from "@/lib/studio";
+import { TRACK_META, formatTimecode, clipSpan, trackMeta } from "@/lib/timeline";
 
 const fieldClass = "rounded-md bg-inset px-2 py-2 text-sm text-ink";
 
@@ -172,40 +173,37 @@ export function ContextPanel() {
         </>
       ) : null}
 
-      {pathname === "/edit" ? (
+      {pathname === "/edit" || pathname === "/audio" ? (
         <>
-          <h2 className="m-0 text-base font-bold">Timeline</h2>
-          <p className="mt-3 text-sm">Program: 00:24:12 / 01:30:00</p>
-          <p className="mt-2 text-[13px] text-muted">Video, motion, dialogue, vocal, music, SFX, and captions. Playback is a layout control, not a rendered cut.</p>
-        </>
-      ) : null}
-
-      {pathname === "/audio" ? (
-        <>
-          <h2 className="m-0 text-base font-bold">Audio</h2>
+          <h2 className="m-0 text-base font-bold">{pathname === "/audio" ? "Audio" : "Timeline"}</h2>
+          {studio.selectedClip ? (
+            <>
+              <p className="mt-3 text-sm">{studio.selectedClip.name}</p>
+              <p className="mt-2 text-[13px] text-muted">
+                {trackMeta(studio.selectedClip.track).label} · {formatTimecode(clipSpan(studio.selectedClip))} · {studio.selectedClip.characterId || "No character"}
+              </p>
+              <p className="mt-2 text-[13px] text-muted">Source file {studio.selectedClip.mediaId}. Trimming does not rewrite it.</p>
+            </>
+          ) : (
+            <p className="mt-3 text-sm text-muted">No clip is selected. The timeline is shared by Edit and Audio.</p>
+          )}
           <label className="mt-3 flex flex-col gap-1 text-xs text-muted">
             Track
-            <select
-              className="rounded-md bg-inset px-2 py-2 text-sm text-ink"
-              value={studio.selectedAudioTrack}
-              onChange={(event) => studio.setSelectedAudioTrack(event.target.value)}
-            >
-              {["Dialogue", "Lead vocal", "Harmony", "Instrumental", "Sound FX", "Ambience", "Captions"].map((track) => (
-                <option key={track}>{track}</option>
+            <select className="rounded-md bg-inset px-2 py-2 text-sm text-ink" value={studio.selectedAudioTrack} onChange={(event) => studio.setSelectedAudioTrack(event.target.value)}>
+              {TRACK_META.map((track) => (
+                <option key={track.id} value={track.id}>{track.label}</option>
               ))}
             </select>
           </label>
-          <p className="mt-3 text-[13px] text-muted">Mix engine: not connected.</p>
+          {pathname === "/audio" ? <p className="mt-3 text-[13px] text-muted">GCIE is not connected. Volume, mute, and fades apply to imported or recorded files only.</p> : null}
         </>
       ) : null}
 
       {pathname === "/export" ? (
         <>
           <h2 className="m-0 text-base font-bold">Quality & Export</h2>
-          <p className="mt-3 text-sm text-muted">Review renders, costs, quality, and delivery. No renderer is connected.</p>
-          <button type="button" className="mt-4 h-9 rounded-[7px] bg-accent px-4 text-[13px] font-bold text-on-accent" onClick={studio.recordLocalExport}>
-            Render / Export
-          </button>
+          <p className="mt-3 text-sm text-muted">The queue encodes the shared timeline with local FFmpeg. A row is completed only after the MP4 is written. Blender, ComfyUI, and Envision Cloud are not connected.</p>
+          <p className="mt-3 text-sm">{studio.warnings.filter((warning) => warning.kind === "export-unsupported" || warning.kind === "clip-media").map((warning) => warning.message).join(" ") || "No export-blocking warnings are stored."}</p>
         </>
       ) : null}
 

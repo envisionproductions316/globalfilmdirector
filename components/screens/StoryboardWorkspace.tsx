@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { TakePlayer } from "@/components/media/TakePlayer";
 import { ContinuityBoard, GraphBoard, SceneDetail, SequenceBoard } from "@/components/production/Boards";
 import { Pipeline } from "@/components/ui/Pipeline";
 import { ViewSwitch } from "@/components/ui/ViewSwitch";
@@ -28,22 +29,36 @@ export function StoryboardWorkspace() {
             <button type="button" className="h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent" onClick={studio.addShot}>Add shot</button>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {studio.shots.map((shot) => {
+            {studio.shots.map((shot, index) => {
               const scene = studio.scenes.find((item) => item.id === shot.sceneId);
+              const linked = studio.takes.filter((take) => take.shotId === shot.id);
+              const previous = studio.shots[index - 1];
+              const next = studio.shots[index + 1];
               return (
-              <button
-                key={shot.id}
-                type="button"
-                className={`flex min-h-[168px] items-end rounded-[9px] p-3 text-left text-[15px] text-[#f1f6ff] ${
-                  shot.id === studio.selectedShotId ? "outline-2 outline-offset-2 outline-ink" : ""
-                }`}
-                style={{ background: shot.color }}
-                onClick={() => studio.selectShot(shot.id)}
-              >
-                {shot.label} • {shot.action || "No action"} • {scene ? scene.title : "No scene"}
-              </button>
+                <div
+                  key={shot.id}
+                  className={`flex min-h-[168px] flex-col justify-end rounded-[9px] p-3 text-left text-[15px] text-[#f1f6ff] ${
+                    shot.id === studio.selectedShotId ? "outline-2 outline-offset-2 outline-ink" : ""
+                  }`}
+                  style={{ background: shot.color }}
+                >
+                  <button type="button" className="text-left" onClick={() => studio.selectShot(shot.id)}>
+                    {shot.label} • {shot.action || "No action"}
+                    <span className="mt-1 block text-xs">{scene ? scene.title : "No scene"}</span>
+                    <span className="mt-1 block text-xs">{linked.length ? linked.map((take) => take.name).join(", ") : "No recording"}</span>
+                  </button>
+                  <span className="mt-2 flex gap-2">
+                    <button type="button" className="rounded bg-black/20 px-2 py-1 text-xs" onClick={() => previous && studio.moveShot(shot.id, previous.id)}>Earlier</button>
+                    <button type="button" className="rounded bg-black/20 px-2 py-1 text-xs" onClick={() => next && studio.moveShot(shot.id, next.id)}>Later</button>
+                  </span>
+                </div>
               );
             })}
+          </div>
+          <div className="mt-4">
+            {studio.takes.filter((take) => take.shotId === studio.selectedShotId).map((take) => (
+              <TakePlayer key={take.id} mediaId={take.mediaId} caption={`${take.name} is linked to this shot. It is a raw recording, not an animated panel.`} />
+            ))}
           </div>
         </article>
       ) : null}

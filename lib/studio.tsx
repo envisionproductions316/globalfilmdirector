@@ -10,6 +10,22 @@ import {
 } from "react";
 import { continuityWarnings, sceneFingerprint } from "@/lib/continuity";
 import { deleteMedia, listMedia, putMedia, storageError } from "@/lib/media-db";
+import {
+  clipsForSource,
+  completeAsset,
+  completeClip,
+  completeMix,
+  defaultMix,
+  moveClip,
+  nudgeClip,
+  resolveTrack,
+  splitClip,
+  trimClip,
+  type AssetRecord,
+  type TimelineClip,
+  type TrackId,
+  type TrackMix,
+} from "@/lib/timeline";
 
 export type ThemeName = "night" | "day";
 export type ProductionStatus = "Draft" | "In review" | "Approved";
@@ -152,7 +168,7 @@ export type ConnectorRecord = {
 };
 
 type StudioState = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   theme: ThemeName;
   projects: ProjectRecord[];
   activeProjectId: string;
@@ -167,6 +183,11 @@ type StudioState = {
   selectedSceneId: string;
   takes: TakeRecord[];
   selectedTakeId: string;
+  clips: TimelineClip[];
+  assets: AssetRecord[];
+  mixes: { projectId: string; tracks: TrackMix[] }[];
+  timelineViews: { projectId: string; playheadMs: number; pixelsPerSecond: number }[];
+  selectedClipId: string;
   selectedAudioTrack: string;
   jobs: JobRecord[];
   selectedConnectorId: string;
@@ -363,7 +384,7 @@ const STARTER_CHARACTERS: CharacterRecord[] = [
 ];
 
 const INITIAL: StudioState = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   theme: "night",
   projects: [blankProject("p1", "Untitled production", "Feature", "Make the scene more cinematic.")],
   activeProjectId: "p1",
@@ -378,7 +399,12 @@ const INITIAL: StudioState = {
   selectedSceneId: "p1-scene-4",
   takes: [],
   selectedTakeId: "",
-  selectedAudioTrack: "Dialogue",
+  clips: [],
+  assets: [],
+  mixes: [{ projectId: "p1", tracks: defaultMix() }],
+  timelineViews: [{ projectId: "p1", playheadMs: 0, pixelsPerSecond: 48 }],
+  selectedClipId: "",
+  selectedAudioTrack: "dialogue",
   jobs: sampleJobs("p1"),
   selectedConnectorId: "blender",
   connectorFilter: "All",
@@ -458,6 +484,12 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
   for (const project of projects) {
     if (!scenes.some((scene) => scene.projectId === project.id)) scenes.push(...scenesFor(project.id));
   }
+  const seenNumbers = new Map<string, number>();
+  for (let index = 0; index < scenes.length; index += 1) {
+    const sequence = (seenNumbers.get(scenes[index].projectId) ?? 0) + 1;
+    seenNumbers.set(scenes[index].projectId, sequence);
+    if (scenes[index].number !== sequence) scenes[index] = { ...scenes[index], number: sequence };
+  }
 
   const shots = looseShots.map((shot) => {
     const siblings = looseShots.filter((item) => item.projectId === shot.projectId);
@@ -472,6 +504,25 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
     .map((take) => completeTake({ ...take, projectId: take.projectId && projectIds.has(take.projectId) ? take.projectId : activeProjectId }, activeProjectId))
     .filter((take): take is TakeRecord => Boolean(take));
 
+  const storedClips = Array.isArray(stored.clips) ? stored.clips : [];
+  const clips = storedClips
+    .map((clip) => completeClip({ ...clip, projectId: clip.projectId && projectIds.has(clip.projectId) ? clip.projectId : activeProjectId }, activeProjectId))
+    .filter((clip): clip is TimelineClip => Boolean(clip));
+  const storedAssets = Array.isArray(stored.assets) ? stored.assets : [];
+  const assets = storedAssets
+    .map((asset) => completeAsset({ ...asset, projectId: asset.projectId && projectIds.has(asset.projectId) ? asset.projectId : activeProjectId }, activeProjectId))
+    .filter((asset): asset is AssetRecord => Boolean(asset));
+  const mixes = projects.map((project) => {
+    const found = Array.isArray(stored.mixes) ? stored.mixes.find((mix) => mix.projectId === project.id) : undefined;
+    return { projectId: project.id, tracks: completeMix(found?.tracks) };
+  });
+  const timelineViews = projects.map((project) => {
+    const found = Array.isArray(stored.timelineViews) ? stored.timelineViews.find((view) => view.projectId === project.id) : undefined;
+    const pixels = typeof found?.pixelsPerSecond === "number" ? Math.min(160, Math.max(24, found.pixelsPerSecond)) : 48;
+    const playhead = typeof found?.playheadMs === "number" && found.playheadMs >= 0 ? found.playheadMs : 0;
+    return { projectId: project.id, playheadMs: playhead, pixelsPerSecond: pixels };
+  });
+
   const storedJobs = Array.isArray(stored.jobs) ? stored.jobs : [];
   const jobs = storedJobs.map((job) => ({
     ...job,
@@ -484,7 +535,7 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
 
   const theme = stored.theme === "day" || stored.theme === "night" ? stored.theme : base.theme;
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     theme,
     projects,
     activeProjectId,
@@ -499,7 +550,12 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
     selectedSceneId: stored.selectedSceneId || scenes.find((scene) => scene.projectId === activeProjectId)?.id || "",
     takes,
     selectedTakeId: stored.selectedTakeId || takes.find((take) => take.projectId === activeProjectId)?.id || "",
-    selectedAudioTrack: stored.selectedAudioTrack || "Dialogue",
+    clips,
+    assets,
+    mixes,
+    timelineViews,
+    selectedClipId: clips.some((clip) => clip.id === stored.selectedClipId) ? stored.selectedClipId || "" : "",
+    selectedAudioTrack: resolveTrack(stored.selectedAudioTrack),
     jobs,
     selectedConnectorId: CONNECTORS.some((connector) => connector.id === stored.selectedConnectorId) ? stored.selectedConnectorId || "blender" : "blender",
     connectorFilter: stored.connectorFilter || "All",
@@ -527,6 +583,13 @@ type StudioContextValue = {
   takes: TakeRecord[];
   selectedTakeId: string;
   selectedTake: TakeRecord | undefined;
+  clips: TimelineClip[];
+  assets: AssetRecord[];
+  mix: TrackMix[];
+  playheadMs: number;
+  pixelsPerSecond: number;
+  selectedClipId: string;
+  selectedClip: TimelineClip | undefined;
   storageBytes: number;
   mediaReady: boolean;
   warnings: ReturnType<typeof continuityWarnings>;
@@ -563,6 +626,7 @@ type StudioContextValue = {
   selectShot: (id: string) => void;
   addShot: () => void;
   deleteShot: (id: string) => void;
+  moveShot: (fromId: string, toId: string) => void;
   selectScene: (id: string) => void;
   addScene: () => void;
   updateScene: (id: string, patch: Partial<SceneRecord>) => void;
@@ -576,10 +640,34 @@ type StudioContextValue = {
   selectTake: (id: string) => void;
   saveTake: (draft: TakeDraft) => Promise<string | null>;
   updateTake: (id: string, patch: Partial<Pick<TakeRecord, "name" | "notes" | "dialogue" | "sceneId" | "shotId" | "approval" | "characterId">>) => void;
-  deleteTake: (id: string) => Promise<void>;
+  deleteTake: (id: string, force?: boolean) => Promise<string | null>;
+  deleteAsset: (id: string, force?: boolean) => Promise<string | null>;
+  placeTake: (takeId: string) => string | null;
+  placeScene: (sceneId: string) => string | null;
+  placeShot: (shotId: string) => string | null;
+  saveImportedMedia: (draft: {
+    name: string;
+    mime: string;
+    blob: Blob;
+    durationMs: number;
+    hasVideo: boolean;
+    hasAudio: boolean;
+    kind: "import" | "narration";
+    track: TrackId;
+  }) => Promise<string | null>;
+  selectClip: (id: string) => void;
+  updateClip: (id: string, patch: Partial<Pick<TimelineClip, "name" | "volume" | "fadeInMs" | "fadeOutMs" | "sceneId" | "shotId" | "characterId">>) => void;
+  moveTimelineClip: (id: string, startMs: number, track: TrackId) => string | null;
+  trimTimelineClip: (id: string, edge: "in" | "out", sourceMs: number) => void;
+  splitTimelineClip: (id: string, playheadMs: number) => string | null;
+  nudgeTimelineClip: (id: string, direction: -1 | 1) => void;
+  deleteClip: (id: string) => void;
+  setTrackMix: (track: TrackId, patch: Partial<Pick<TrackMix, "muted" | "solo" | "volume">>) => void;
+  setPlayhead: (ms: number) => void;
+  setTimelineZoom: (pixels: number) => void;
   updateShot: (id: string, patch: Partial<Pick<ShotRecord, "label" | "action" | "camera" | "location" | "sceneId" | "movement">>) => void;
   setSelectedAudioTrack: (track: string) => void;
-  recordLocalExport: () => void;
+  recordExport: (label: string) => void;
   selectConnector: (id: string) => void;
   setConnectorFilter: (filter: string) => void;
 };
@@ -642,18 +730,25 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     const scenes = state.scenes.filter((scene) => scene.projectId === activeProject.id);
     const jobs = state.jobs.filter((job) => job.projectId === activeProject.id);
     const takes = state.takes.filter((take) => take.projectId === activeProject.id);
+    const clips = state.clips.filter((clip) => clip.projectId === activeProject.id);
+    const assets = state.assets.filter((asset) => asset.projectId === activeProject.id);
+    const mix = state.mixes.find((item) => item.projectId === activeProject.id)?.tracks ?? defaultMix();
+    const timelineView = state.timelineViews.find((item) => item.projectId === activeProject.id) ?? { playheadMs: 0, pixelsPerSecond: 48 };
     const selectedCharacter = characters.find((character) => character.id === state.selectedCharacterId) ?? characters[0];
     const selectedShot = shots.find((shot) => shot.id === state.selectedShotId) ?? shots[0];
     const selectedScene = scenes.find((scene) => scene.id === state.selectedSceneId) ?? scenes[0];
     const selectedTake = takes.find((take) => take.id === state.selectedTakeId) ?? takes.find((take) => take.characterId === selectedCharacter?.id);
+    const selectedClip = clips.find((clip) => clip.id === state.selectedClipId);
     const warnings = continuityWarnings({
       projectId: activeProject.id,
+      projectTitle: activeProject.title,
       characters,
       scenes,
       shots,
       takes,
       mediaIds: new Set(mediaIds),
       mediaReady,
+      clips,
     });
 
     function updateActive(patch: Partial<ProjectRecord>) {
@@ -684,6 +779,13 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       takes,
       selectedTakeId: selectedTake?.id ?? "",
       selectedTake,
+      clips,
+      assets,
+      mix,
+      playheadMs: timelineView.playheadMs,
+      pixelsPerSecond: timelineView.pixelsPerSecond,
+      selectedClipId: selectedClip?.id ?? "",
+      selectedClip,
       storageBytes,
       mediaReady,
       warnings,
@@ -712,6 +814,8 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           shots: [...shotsFor(id), ...current.shots],
           scenes: [...scenesFor(id), ...current.scenes],
           jobs: [...sampleJobs(id), ...current.jobs],
+          mixes: [{ projectId: id, tracks: defaultMix() }, ...current.mixes],
+          timelineViews: [{ projectId: id, playheadMs: 0, pixelsPerSecond: 48 }, ...current.timelineViews],
           editorOpen: false,
           notices: withNotice(current.notices, `“${title}” is saved on this device only.`),
         }));
@@ -723,19 +827,26 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           projects: current.projects.map((project) => (project.id === id ? { ...project, ...patch } : project)),
         })),
       deleteProject: (id) => {
-        const doomed = state.takes.filter((take) => take.projectId === id).map((take) => take.mediaId);
+        const doomed = [
+          ...state.takes.filter((take) => take.projectId === id).map((take) => take.mediaId),
+          ...state.assets.filter((asset) => asset.projectId === id).map((asset) => asset.id),
+        ];
         setState((current) => {
           const removed = current.projects.find((project) => project.id === id);
           let projects = current.projects.filter((project) => project.id !== id);
           let shotsForState = current.shots.filter((shot) => shot.projectId !== id);
           let jobsForState = current.jobs.filter((job) => job.projectId !== id);
           let scenesForState = current.scenes.filter((scene) => scene.projectId !== id);
+          let mixes = current.mixes.filter((mix) => mix.projectId !== id);
+          let timelineViews = current.timelineViews.filter((view) => view.projectId !== id);
           if (projects.length === 0) {
             const replacementId = crypto.randomUUID();
             projects = [blankProject(replacementId, "Untitled production", "Feature")];
             shotsForState = shotsFor(replacementId);
             scenesForState = scenesFor(replacementId);
             jobsForState = sampleJobs(replacementId);
+            mixes = [{ projectId: replacementId, tracks: defaultMix() }];
+            timelineViews = [{ projectId: replacementId, playheadMs: 0, pixelsPerSecond: 48 }];
           }
           const activeProjectId = projects.some((project) => project.id === current.activeProjectId) ? current.activeProjectId : projects[0].id;
           return {
@@ -746,6 +857,10 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             jobs: jobsForState,
             characters: current.characters.filter((character) => character.projectId !== id),
             takes: current.takes.filter((take) => take.projectId !== id),
+            clips: current.clips.filter((clip) => clip.projectId !== id),
+            assets: current.assets.filter((asset) => asset.projectId !== id),
+            mixes,
+            timelineViews,
             activeProjectId,
             editorOpen: false,
             notices: withNotice(current.notices, `“${removed?.title ?? "Project"}” was deleted from this device.`),
@@ -885,6 +1000,18 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           shots: current.shots.filter((shot) => shot.id !== id),
           notices: withNotice(current.notices, "Shot deleted from this project on this device."),
         })),
+      moveShot: (fromId, toId) =>
+        setState((current) => {
+          const mine = current.shots.filter((shot) => shot.projectId === current.activeProjectId);
+          const rest = current.shots.filter((shot) => shot.projectId !== current.activeProjectId);
+          const from = mine.findIndex((shot) => shot.id === fromId);
+          const to = mine.findIndex((shot) => shot.id === toId);
+          if (from < 0 || to < 0 || from === to) return current;
+          const next = [...mine];
+          const [item] = next.splice(from, 1);
+          next.splice(to, 0, item);
+          return { ...current, shots: [...rest, ...next] };
+        }),
       selectScene: (id) => setState((current) => ({ ...current, selectedSceneId: id })),
       addScene: () =>
         setState((current) => {
@@ -940,7 +1067,8 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           const next = [...mine];
           const [item] = next.splice(from, 1);
           next.splice(to, 0, item);
-          return { ...current, scenes: [...rest, ...next] };
+          const numbered = next.map((scene, index) => ({ ...scene, number: index + 1 }));
+          return { ...current, scenes: [...rest, ...numbered] };
         }),
       approveScene: (id) =>
         setState((current) => ({
@@ -1039,8 +1167,13 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           ...current,
           takes: current.takes.map((take) => (take.id === id ? { ...take, ...patch, id: take.id, projectId: take.projectId, mediaId: take.mediaId } : take)),
         })),
-      deleteTake: async (id) => {
-        const mediaId = state.takes.find((take) => take.id === id)?.mediaId;
+      deleteTake: async (id, force = false) => {
+        const take = state.takes.find((item) => item.id === id);
+        const referenced = state.clips.filter((clip) => clip.takeId === id || (take?.mediaId && clip.mediaId === take.mediaId));
+        if (referenced.length > 0 && !force) {
+          return `This recording is used by ${referenced.length} timeline clip${referenced.length === 1 ? "" : "s"}. It was kept.`;
+        }
+        const mediaId = take?.mediaId;
         if (mediaId) {
           try {
             await deleteMedia(mediaId);
@@ -1050,25 +1183,282 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         }
         setState((current) => ({
           ...current,
-          takes: current.takes.filter((take) => take.id !== id),
-          notices: withNotice(current.notices, "Take deleted from this character on this device."),
+          takes: current.takes.filter((item) => item.id !== id),
+          notices: withNotice(current.notices, "Take deleted from this character on this device. Timeline clips were left in place."),
         }));
         await refreshMedia();
+        return null;
       },
+      deleteAsset: async (id, force = false) => {
+        const referenced = state.clips.filter((clip) => clip.mediaId === id);
+        if (referenced.length > 0 && !force) return `This file is used by ${referenced.length} timeline clip${referenced.length === 1 ? "" : "s"}. It was kept.`;
+        try {
+          await deleteMedia(id);
+        } catch {
+          setState((current) => ({ ...current, notices: withNotice(current.notices, "The asset was removed. The file could not be deleted.") }));
+        }
+        setState((current) => ({
+          ...current,
+          assets: current.assets.filter((asset) => asset.id !== id),
+          notices: withNotice(current.notices, "Imported file deleted from this device. Timeline clips were left in place."),
+        }));
+        await refreshMedia();
+        return null;
+      },
+      placeTake: (takeId) => {
+        let error: string | null = "That take is not in this project.";
+        setState((current) => {
+          const take = current.takes.find((item) => item.id === takeId && item.projectId === current.activeProjectId);
+          if (!take) return current;
+          const mine = current.clips.filter((clip) => clip.projectId === current.activeProjectId);
+          const placed = clipsForSource(mine, {
+            projectId: current.activeProjectId,
+            mediaId: take.mediaId,
+            takeId: take.id,
+            sceneId: take.sceneId,
+            shotId: take.shotId,
+            characterId: take.characterId,
+            name: take.name,
+            durationMs: take.durationMs,
+            hasVideo: take.hasVideo,
+            hasAudio: take.hasAudio,
+            newId: () => crypto.randomUUID(),
+          });
+          error = placed.error || null;
+          if (placed.clips.length === 0) return current;
+          return {
+            ...current,
+            clips: [...current.clips, ...placed.clips],
+            selectedClipId: placed.clips[0].id,
+            notices: withNotice(current.notices, `${take.name} was placed on the timeline. The recording was not re-encoded.`),
+          };
+        });
+        return error;
+      },
+      placeScene: (sceneId) => {
+        const matches = state.takes.filter((take) => take.projectId === activeProject.id && take.sceneId === sceneId);
+        if (matches.length === 0) return "This scene has no recording to place.";
+        let added = 0;
+        setState((current) => {
+          let mine = current.clips.filter((clip) => clip.projectId === current.activeProjectId);
+          const created: TimelineClip[] = [];
+          for (const take of matches) {
+            const placed = clipsForSource(mine, {
+              projectId: current.activeProjectId,
+              mediaId: take.mediaId,
+              takeId: take.id,
+              sceneId: take.sceneId,
+              shotId: take.shotId,
+              characterId: take.characterId,
+              name: take.name,
+              durationMs: take.durationMs,
+              hasVideo: take.hasVideo,
+              hasAudio: take.hasAudio,
+              newId: () => crypto.randomUUID(),
+            });
+            if (placed.clips.length === 0) continue;
+            created.push(...placed.clips);
+            mine = [...mine, ...placed.clips];
+          }
+          added = created.length;
+          if (created.length === 0) return current;
+          return { ...current, clips: [...current.clips, ...created], selectedClipId: created[0].id };
+        });
+        return added === 0 ? "Those recordings are already on the timeline." : null;
+      },
+      placeShot: (shotId) => {
+        const matches = state.takes.filter((take) => take.projectId === activeProject.id && take.shotId === shotId);
+        if (matches.length === 0) return "This shot has no recording to place.";
+        let added = 0;
+        setState((current) => {
+          let mine = current.clips.filter((clip) => clip.projectId === current.activeProjectId);
+          const created: TimelineClip[] = [];
+          for (const take of matches) {
+            const placed = clipsForSource(mine, {
+              projectId: current.activeProjectId,
+              mediaId: take.mediaId,
+              takeId: take.id,
+              sceneId: take.sceneId,
+              shotId: take.shotId,
+              characterId: take.characterId,
+              name: take.name,
+              durationMs: take.durationMs,
+              hasVideo: take.hasVideo,
+              hasAudio: take.hasAudio,
+              newId: () => crypto.randomUUID(),
+            });
+            if (placed.clips.length === 0) continue;
+            created.push(...placed.clips);
+            mine = [...mine, ...placed.clips];
+          }
+          added = created.length;
+          if (created.length === 0) return current;
+          return { ...current, clips: [...current.clips, ...created], selectedClipId: created[0].id };
+        });
+        return added === 0 ? "Those recordings are already on the timeline." : null;
+      },
+      saveImportedMedia: async (draft) => {
+        if (!draft.blob || draft.blob.size === 0) return "The file was empty and was not imported.";
+        if (draft.durationMs < 40) return "This file has no readable duration.";
+        const id = crypto.randomUUID();
+        const createdAt = new Date().toISOString();
+        try {
+          await putMedia({
+            id,
+            projectId: activeProject.id,
+            takeId: "",
+            blob: draft.blob,
+            mime: draft.mime || "application/octet-stream",
+            bytes: draft.blob.size,
+            createdAt,
+          });
+        } catch (error) {
+          return storageError(error);
+        }
+        let placementError: string | null = null;
+        setState((current) => {
+          const asset: AssetRecord = {
+            id,
+            projectId: current.activeProjectId,
+            name: draft.name || "Imported media",
+            mime: draft.mime,
+            bytes: draft.blob.size,
+            durationMs: draft.durationMs,
+            hasVideo: draft.hasVideo,
+            hasAudio: draft.hasAudio,
+            kind: draft.kind,
+            createdAt,
+          };
+          const mine = current.clips.filter((clip) => clip.projectId === current.activeProjectId);
+          const placed = clipsForSource(mine, {
+            projectId: current.activeProjectId,
+            mediaId: id,
+            takeId: "",
+            sceneId: current.selectedSceneId,
+            shotId: current.selectedShotId,
+            characterId: "",
+            name: asset.name,
+            durationMs: draft.durationMs,
+            hasVideo: draft.hasVideo,
+            hasAudio: draft.hasAudio,
+            track: draft.track,
+            newId: () => crypto.randomUUID(),
+          });
+          placementError = placed.error || null;
+          return {
+            ...current,
+            assets: [asset, ...current.assets],
+            clips: placed.clips.length ? [...current.clips, ...placed.clips] : current.clips,
+            selectedClipId: placed.clips[0]?.id || current.selectedClipId,
+            notices: withNotice(current.notices, placed.error || `${asset.name} is stored on this device and placed on the timeline.`),
+          };
+        });
+        await refreshMedia();
+        return placementError;
+      },
+      selectClip: (id) => setState((current) => ({ ...current, selectedClipId: id })),
+      updateClip: (id, patch) =>
+        setState((current) => ({
+          ...current,
+          clips: current.clips.map((clip) => (clip.id === id ? { ...clip, ...patch, id: clip.id, mediaId: clip.mediaId, projectId: clip.projectId } : clip)),
+        })),
+      moveTimelineClip: (id, startMs, track) => {
+        let error: string | null = "That clip is not on this timeline.";
+        setState((current) => {
+          const clip = current.clips.find((item) => item.id === id);
+          if (!clip) return current;
+          const take = current.takes.find((item) => item.mediaId === clip.mediaId);
+          const asset = current.assets.find((item) => item.id === clip.mediaId);
+          const shape = {
+            hasVideo: take ? take.hasVideo : Boolean(asset?.hasVideo),
+            hasAudio: take ? take.hasAudio || take.hasVideo : asset ? asset.hasAudio || asset.hasVideo : true,
+          };
+          const moved = moveClip(clip, startMs, track, shape);
+          if (!moved) {
+            error = "That track cannot hold this clip. Character motion and captions stay empty.";
+            return current;
+          }
+          error = null;
+          return { ...current, selectedClipId: id, clips: current.clips.map((item) => (item.id === id ? moved : item)) };
+        });
+        return error;
+      },
+      trimTimelineClip: (id, edge, sourceMs) =>
+        setState((current) => ({
+          ...current,
+          clips: current.clips.map((clip) => {
+            if (clip.id !== id || !Number.isFinite(sourceMs)) return clip;
+            const take = current.takes.find((item) => item.mediaId === clip.mediaId);
+            const asset = current.assets.find((item) => item.id === clip.mediaId);
+            const mediaDuration = take?.durationMs || asset?.durationMs || clip.outMs;
+            return trimClip(clip, edge, sourceMs, mediaDuration);
+          }),
+        })),
+      splitTimelineClip: (id, playheadMs) => {
+        let error: string | null = "The playhead is not inside this clip.";
+        setState((current) => {
+          const clip = current.clips.find((item) => item.id === id);
+          if (!clip) return current;
+          const parts = splitClip(clip, playheadMs, crypto.randomUUID());
+          if (!parts) return current;
+          error = null;
+          return {
+            ...current,
+            selectedClipId: parts[1].id,
+            clips: current.clips.flatMap((item) => (item.id === id ? parts : [item])),
+          };
+        });
+        return error;
+      },
+      nudgeTimelineClip: (id, direction) =>
+        setState((current) => ({
+          ...current,
+          clips: nudgeClip(current.clips, id, direction),
+        })),
+      deleteClip: (id) =>
+        setState((current) => ({
+          ...current,
+          clips: current.clips.filter((clip) => clip.id !== id),
+          selectedClipId: current.selectedClipId === id ? "" : current.selectedClipId,
+          notices: withNotice(current.notices, "Clip removed from the timeline. The source file was kept."),
+        })),
+      setTrackMix: (track, patch) =>
+        setState((current) => ({
+          ...current,
+          mixes: current.mixes.map((mix) =>
+            mix.projectId === current.activeProjectId
+              ? { ...mix, tracks: mix.tracks.map((item) => (item.id === track ? { ...item, ...patch } : item)) }
+              : mix,
+          ),
+        })),
+      setPlayhead: (ms) =>
+        setState((current) => ({
+          ...current,
+          timelineViews: current.timelineViews.map((view) =>
+            view.projectId === current.activeProjectId ? { ...view, playheadMs: Math.max(0, ms) } : view,
+          ),
+        })),
+      setTimelineZoom: (pixels) =>
+        setState((current) => ({
+          ...current,
+          timelineViews: current.timelineViews.map((view) =>
+            view.projectId === current.activeProjectId ? { ...view, pixelsPerSecond: Math.min(160, Math.max(24, pixels)) } : view,
+          ),
+        })),
       updateShot: (id, patch) =>
         setState((current) => ({
           ...current,
           shots: current.shots.map((shot) => (shot.id === id ? { ...shot, ...patch } : shot)),
         })),
       setSelectedAudioTrack: (track) => setState((current) => ({ ...current, selectedAudioTrack: track })),
-      recordLocalExport: () =>
+      recordExport: (label) =>
         setState((current) => ({
           ...current,
           jobs: [
-            { id: crypto.randomUUID(), projectId: current.activeProjectId, label: "Export request", state: "Recorded locally", sample: false },
+            { id: crypto.randomUUID(), projectId: current.activeProjectId, label, state: "Completed", sample: false },
             ...current.jobs,
           ],
-          notices: withNotice(current.notices, "Export was recorded on this device. No renderer was started."),
+          notices: withNotice(current.notices, "The timeline file was encoded on this computer. No cloud render ran."),
         })),
       selectConnector: (id) => setState((current) => ({ ...current, selectedConnectorId: id })),
       setConnectorFilter: (filter) => setState((current) => ({ ...current, connectorFilter: filter })),
