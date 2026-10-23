@@ -1,15 +1,25 @@
 "use client";
 
+import { useState } from "react";
+import { GraphBoard } from "@/components/production/Boards";
 import { Pipeline } from "@/components/ui/Pipeline";
 import { Timeline } from "@/components/ui/Timeline";
+import { ViewSwitch } from "@/components/ui/ViewSwitch";
 
 const MEDIA = ["Scene 01", "Scene 02", "Scene 03", "Dialogue", "Music", "Captions"];
 
 export function EditWorkspace() {
+  const [view, setView] = useState("Timeline");
+
   return (
     <section>
-      <h1 className="m-0 text-[26px] font-bold">07 · Film Editing Studio</h1>
-      <p className="mt-2 text-[15px] text-muted">Multitrack film, animation, audio, and captions</p>
+      <h1 className="m-0 text-[26px] font-bold">{view === "Graph" ? "22 · Connected Production Graph" : "07 · Film Editing Studio"}</h1>
+      <p className="mt-2 text-[15px] text-muted">
+        {view === "Graph" ? "Track scene, character, camera, voice, and audio notes. This map does not re-render anything." : "Multitrack film, animation, audio, and captions"}
+      </p>
+      <ViewSwitch views={["Timeline", "Graph"]} value={view} onChange={setView} />
+      {view === "Graph" ? <GraphBoard /> : (
+      <>
       <div className="mt-5 grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         <article className="rounded-[10px] bg-card px-4 py-4">
           <h2 className="m-0 text-base font-bold">Media Library</h2>
@@ -38,6 +48,8 @@ export function EditWorkspace() {
           { name: "Captions", color: "#23b7a5" },
         ]}
       />
+      </>
+      )}
       <Pipeline />
     </section>
   );

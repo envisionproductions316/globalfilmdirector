@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Pipeline } from "@/components/ui/Pipeline";
 import { Timeline } from "@/components/ui/Timeline";
+import { PerformanceEditor } from "@/components/characters/PerformanceEditor";
 import { useStudio } from "@/lib/studio";
 
 const CONTROLS = ["Face", "Body", "Voice", "Wardrobe"] as const;
@@ -56,6 +57,7 @@ export function CharactersWorkspace() {
                 </button>
               ))}
             </div>
+            <p className="mt-3 text-sm text-muted lg:hidden">Profile fields are in the inspector. Performances for this character are below.</p>
             <p className="mt-3 text-sm text-muted">{control} for the selected actor. Retake does not start a camera.</p>
             {studio.selectedCharacter ? (
               <dl className="mt-4 grid gap-2 text-sm">
@@ -102,6 +104,7 @@ export function CharactersWorkspace() {
             />
           </article>
         </div>
+        <PerformanceEditor />
         <Pipeline />
       </section>
     );
@@ -111,6 +114,7 @@ export function CharactersWorkspace() {
     <section>
       <h1 className="m-0 text-[26px] font-bold">03 · Character Library</h1>
       <p className="mt-2 text-[15px] text-muted">Create 2D/3D characters, voices, looks, and identities</p>
+      <p className="mt-2 text-sm text-muted lg:hidden">Open a character to edit DNA, appearance, voice, wardrobe, and scenes in the inspector.</p>
       <article className="mt-5 rounded-[10px] bg-card px-5 py-4">
         <h2 className="m-0 text-base font-bold">Character Library</h2>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
@@ -120,7 +124,7 @@ export function CharactersWorkspace() {
               <button
                 key={character.id}
                 type="button"
-                className={`flex min-h-[220px] items-end rounded-[9px] p-4 text-left text-[17px] font-bold text-[#f1f6ff] ${
+                className={`flex min-h-[120px] items-end rounded-[9px] p-4 text-left text-[17px] font-bold text-[#f1f6ff] lg:min-h-[220px] ${
                   selected ? "outline-2 outline-offset-2 outline-ink" : ""
                 }`}
                 style={{ background: character.color }}

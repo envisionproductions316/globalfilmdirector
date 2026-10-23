@@ -125,9 +125,10 @@ export function ContextPanel() {
         <>
           <h2 className="m-0 text-base font-bold">Camera</h2>
           <p className="mt-3 text-sm">Mode: Camera capture</p>
-          <p className="mt-2 text-[13px] text-muted">Starting the camera does not retarget motion onto a character.</p>
+          <p className="mt-2 text-[13px] text-muted">Starting the camera does not retarget motion onto a character. Recordings are raw video stored on this device.</p>
           <p className="mt-3 text-sm">Project: {studio.activeProject.title}</p>
           <p className="mt-2 text-sm">Preview character: {character ? character.name : "None"}</p>
+          <p className="mt-2 text-sm">Takes for this character: {studio.takes.filter((take) => take.characterId === character?.id).length}</p>
         </>
       ) : null}
 
@@ -149,7 +150,21 @@ export function ContextPanel() {
                 Action
                 <input className={fieldClass} value={shot.action} onChange={(event) => studio.updateShot(shot.id, { action: event.target.value })} />
               </label>
+              <label className="mt-3 flex flex-col gap-1 text-xs text-muted">
+                Scene
+                <select className={fieldClass} value={shot.sceneId} onChange={(event) => studio.updateShot(shot.id, { sceneId: event.target.value })}>
+                  <option value="">Unassigned</option>
+                  {studio.scenes.map((scene) => (
+                    <option key={scene.id} value={scene.id}>{scene.title}</option>
+                  ))}
+                </select>
+              </label>
               <p className="mt-3 text-[13px] text-muted">Shot id {shot.id}</p>
+              {studio.selectedScene ? (
+                <p className="mt-3 text-[13px] text-muted">
+                  Scene {studio.selectedScene.title} · {studio.selectedScene.status} · {studio.selectedScene.stage}
+                </p>
+              ) : null}
             </>
           ) : (
             <p className="mt-3 text-sm text-muted">This project has no shots.</p>

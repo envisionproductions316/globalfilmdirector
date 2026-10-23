@@ -8,6 +8,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { continuityWarnings, sceneFingerprint } from "@/lib/continuity";
+import { deleteMedia, listMedia, putMedia, storageError } from "@/lib/media-db";
 
 export type ThemeName = "night" | "day";
 export type ProductionStatus = "Draft" | "In review" | "Approved";
@@ -58,11 +60,79 @@ export type Notice = {
 export type ShotRecord = {
   id: string;
   projectId: string;
+  sceneId: string;
   label: string;
   action: string;
   color: string;
   camera: string;
+  movement: string;
   location: string;
+};
+
+export type SceneRecord = {
+  id: string;
+  projectId: string;
+  number: number;
+  title: string;
+  description: string;
+  status: "Approved" | "Needs review";
+  stage: "Draft" | "Continuity review" | "Approved";
+  color: string;
+  passport: string;
+  world: string;
+  location: string;
+  timeOfDay: string;
+  characterIds: string[];
+  dialogue: string;
+  action: string;
+  performance: string;
+  voice: string;
+  camera: string;
+  movement: string;
+  music: string;
+  soundNotes: string;
+  duration: string;
+  rights: string;
+  approvedFingerprint: string;
+};
+
+export type TakeRecord = {
+  id: string;
+  projectId: string;
+  characterId: string;
+  sceneId: string;
+  shotId: string;
+  name: string;
+  notes: string;
+  dialogue: string;
+  durationMs: number;
+  createdAt: string;
+  approval: ProductionStatus;
+  mediaId: string;
+  mime: string;
+  bytes: number;
+  hasAudio: boolean;
+  hasVideo: boolean;
+  cameraLabel: string;
+  microphoneLabel: string;
+  tracking: "Raw recording only";
+  retarget: "Not available";
+};
+
+export type TakeDraft = {
+  characterId: string;
+  sceneId: string;
+  shotId: string;
+  name: string;
+  notes: string;
+  dialogue: string;
+  durationMs: number;
+  blob: Blob;
+  mime: string;
+  hasAudio: boolean;
+  hasVideo: boolean;
+  cameraLabel: string;
+  microphoneLabel: string;
 };
 
 export type JobRecord = {
@@ -82,6 +152,7 @@ export type ConnectorRecord = {
 };
 
 type StudioState = {
+  schemaVersion: 2;
   theme: ThemeName;
   projects: ProjectRecord[];
   activeProjectId: string;
@@ -92,6 +163,10 @@ type StudioState = {
   editorOpen: boolean;
   shots: ShotRecord[];
   selectedShotId: string;
+  scenes: SceneRecord[];
+  selectedSceneId: string;
+  takes: TakeRecord[];
+  selectedTakeId: string;
   selectedAudioTrack: string;
   jobs: JobRecord[];
   selectedConnectorId: string;
@@ -109,13 +184,13 @@ const PLAN_LABELS = ["Cast", "Storyboard", "Camera plan", "Music", "Editable sce
 const CHARACTER_COLORS = ["#324e78", "#714b65", "#3a6c73", "#685b8b", "#75624b", "#405d84"];
 const ANIMATION_STYLES: AnimationStyle[] = ["Unassigned", "Realistic", "Stylized", "Limited", "Graphic"];
 
-const SHOT_TEMPLATES: Omit<ShotRecord, "id" | "projectId">[] = [
-  { label: "Shot 1", action: "Camera / action", color: "#3e547a", camera: "Wide", location: "Interior" },
-  { label: "Shot 2", action: "Camera / action", color: "#625273", camera: "Medium", location: "Interior" },
-  { label: "Shot 3", action: "Camera / action", color: "#3a6672", camera: "Close", location: "Exterior" },
-  { label: "Shot 4", action: "Camera / action", color: "#3e547a", camera: "Tracking", location: "Street" },
-  { label: "Shot 5", action: "Camera / action", color: "#625273", camera: "Over shoulder", location: "Interior" },
-  { label: "Shot 6", action: "Camera / action", color: "#3a6672", camera: "Static", location: "Exterior" },
+const SHOT_TEMPLATES: Omit<ShotRecord, "id" | "projectId" | "sceneId">[] = [
+  { label: "Shot 1", action: "Camera / action", color: "#3e547a", camera: "Wide", movement: "", location: "Interior" },
+  { label: "Shot 2", action: "Camera / action", color: "#625273", camera: "Medium", movement: "", location: "Interior" },
+  { label: "Shot 3", action: "Camera / action", color: "#3a6672", camera: "Close", movement: "", location: "Exterior" },
+  { label: "Shot 4", action: "Camera / action", color: "#3e547a", camera: "Tracking", movement: "Tracking", location: "Street" },
+  { label: "Shot 5", action: "Camera / action", color: "#625273", camera: "Over shoulder", movement: "", location: "Interior" },
+  { label: "Shot 6", action: "Camera / action", color: "#3a6672", camera: "Static", movement: "Static", location: "Exterior" },
 ];
 
 export const CONNECTORS: ConnectorRecord[] = [
@@ -151,12 +226,110 @@ function defaultPlan(): PlanItem[] {
   }));
 }
 
+const SCENE_TEMPLATES: Array<Partial<SceneRecord> & { title: string; status: SceneRecord["status"]; stage: SceneRecord["stage"]; color: string }> = [
+  { title: "01 Opening • The city", status: "Approved", stage: "Approved", color: "#375377", passport: "Unassigned", world: "City", performance: "Unassigned", voice: "Unassigned", camera: "Wide", music: "Pending", rights: "Review" },
+  { title: "02 Symphony enters", status: "Approved", stage: "Approved", color: "#62517d", passport: "Symphony", world: "Interior", performance: "Take 01", voice: "Linked", camera: "Medium", music: "Music intro 00:16", rights: "Review" },
+  { title: "03 Mr. Mean responds", status: "Needs review", stage: "Continuity review", color: "#426c71", passport: "Mr. Mean", world: "Interior", performance: "Take 02", voice: "Linked", camera: "Close", music: "Pending", rights: "Review" },
+  { title: "04 Mrs. Amara dances", status: "Needs review", stage: "Draft", color: "#375377", passport: "Mrs. Amara", world: "Concert venue", performance: "Dance 03", voice: "Linked", camera: "Medium tracking", music: "Chorus 00:42", rights: "Review" },
+  { title: "05 Ensemble finale", status: "Needs review", stage: "Draft", color: "#62517d", passport: "Ensemble", world: "Concert venue", performance: "Group 01", voice: "Unassigned", camera: "Wide", music: "Pending", rights: "Review" },
+];
+
+function scenesFor(projectId: string): SceneRecord[] {
+  return SCENE_TEMPLATES.map((template, index) =>
+    completeScene(
+      {
+        ...template,
+        id: `${projectId}-scene-${index + 1}`,
+        projectId,
+        number: index + 1,
+        location: template.world,
+        timeOfDay: "Unspecified",
+      },
+      projectId,
+    ),
+  );
+}
+
 function shotsFor(projectId: string): ShotRecord[] {
   return SHOT_TEMPLATES.map((template, index) => ({
     ...template,
     id: `${projectId}-shot-${index + 1}`,
     projectId,
+    sceneId: `${projectId}-scene-${(index % 5) + 1}`,
   }));
+}
+
+function completeScene(scene: Partial<SceneRecord>, projectId: string): SceneRecord {
+  const status = scene.status === "Approved" ? "Approved" : "Needs review";
+  const stage = scene.stage === "Approved" || scene.stage === "Continuity review" || scene.stage === "Draft" ? scene.stage : "Draft";
+  const next: SceneRecord = {
+    id: scene.id || `${projectId}-scene`,
+    projectId: scene.projectId || projectId,
+    number: typeof scene.number === "number" ? scene.number : 1,
+    title: scene.title || "Untitled scene",
+    description: scene.description || "",
+    status,
+    stage,
+    color: scene.color || "#375377",
+    passport: scene.passport || "Unassigned",
+    world: scene.world || scene.location || "Unassigned",
+    location: scene.location || scene.world || "Unassigned",
+    timeOfDay: scene.timeOfDay || "Unspecified",
+    characterIds: Array.isArray(scene.characterIds) ? scene.characterIds.filter((id) => typeof id === "string") : [],
+    dialogue: scene.dialogue || "",
+    action: scene.action || "",
+    performance: scene.performance || "Unassigned",
+    voice: scene.voice || "Unassigned",
+    camera: scene.camera || "Wide",
+    movement: scene.movement || "",
+    music: scene.music || "Pending",
+    soundNotes: scene.soundNotes || "",
+    duration: scene.duration || "",
+    rights: scene.rights || "Review",
+    approvedFingerprint: scene.approvedFingerprint || "",
+  };
+  if (next.status === "Approved" && !next.approvedFingerprint) next.approvedFingerprint = sceneFingerprint(next);
+  return next;
+}
+
+function completeShot(shot: Partial<ShotRecord>, projectId: string, fallbackSceneId: string): ShotRecord {
+  return {
+    id: shot.id || `${projectId}-shot`,
+    projectId: shot.projectId || projectId,
+    sceneId: typeof shot.sceneId === "string" ? shot.sceneId : fallbackSceneId,
+    label: shot.label || "Shot",
+    action: shot.action || "",
+    color: shot.color || "#3e547a",
+    camera: shot.camera || "Wide",
+    movement: shot.movement || "",
+    location: shot.location || "",
+  };
+}
+
+function completeTake(take: Partial<TakeRecord>, projectId: string): TakeRecord | null {
+  if (!take.id || !take.characterId || !take.mediaId) return null;
+  return {
+    id: take.id,
+    projectId: take.projectId || projectId,
+    characterId: take.characterId,
+    sceneId: take.sceneId || "",
+    shotId: take.shotId || "",
+    name: take.name || "Take",
+    notes: take.notes || "",
+    dialogue: take.dialogue || "",
+    durationMs: typeof take.durationMs === "number" ? take.durationMs : 0,
+    createdAt: take.createdAt || "",
+    approval: take.approval === "Approved" || take.approval === "In review" ? take.approval : "Draft",
+    mediaId: take.mediaId,
+    mime: take.mime || "video/webm",
+    bytes: typeof take.bytes === "number" ? take.bytes : 0,
+    hasAudio: Boolean(take.hasAudio),
+    hasVideo: take.hasVideo !== false,
+    cameraLabel: take.cameraLabel || "Camera",
+    microphoneLabel: take.microphoneLabel || "No microphone",
+    tracking: "Raw recording only",
+    retarget: "Not available",
+  };
 }
 
 function sampleJobs(projectId: string): JobRecord[] {
@@ -190,6 +363,7 @@ const STARTER_CHARACTERS: CharacterRecord[] = [
 ];
 
 const INITIAL: StudioState = {
+  schemaVersion: 2,
   theme: "night",
   projects: [blankProject("p1", "Untitled production", "Feature", "Make the scene more cinematic.")],
   activeProjectId: "p1",
@@ -200,6 +374,10 @@ const INITIAL: StudioState = {
   editorOpen: false,
   shots: shotsFor("p1"),
   selectedShotId: "p1-shot-1",
+  scenes: scenesFor("p1"),
+  selectedSceneId: "p1-scene-4",
+  takes: [],
+  selectedTakeId: "",
   selectedAudioTrack: "Dialogue",
   jobs: sampleJobs("p1"),
   selectedConnectorId: "blender",
@@ -262,10 +440,37 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
   );
 
   const storedShots = Array.isArray(stored.shots) ? stored.shots : [];
-  const shots = storedShots.length > 0 ? storedShots.map((shot) => ({ ...shot, projectId: shot.projectId && projectIds.has(shot.projectId) ? shot.projectId : activeProjectId })) : [];
+  const looseShots = storedShots.length > 0 ? storedShots.map((shot) => ({ ...shot, projectId: shot.projectId && projectIds.has(shot.projectId) ? shot.projectId : activeProjectId })) : [];
   for (const project of projects) {
-    if (!shots.some((shot) => shot.projectId === project.id)) shots.push(...shotsFor(project.id));
+    if (!looseShots.some((shot) => shot.projectId === project.id)) looseShots.push(...shotsFor(project.id));
   }
+
+  const storedScenes = Array.isArray(stored.scenes) ? stored.scenes : [];
+  const scenes = storedScenes.map((scene) =>
+    completeScene(
+      {
+        ...scene,
+        projectId: scene.projectId && projectIds.has(scene.projectId) ? scene.projectId : activeProjectId,
+      },
+      activeProjectId,
+    ),
+  );
+  for (const project of projects) {
+    if (!scenes.some((scene) => scene.projectId === project.id)) scenes.push(...scenesFor(project.id));
+  }
+
+  const shots = looseShots.map((shot) => {
+    const siblings = looseShots.filter((item) => item.projectId === shot.projectId);
+    const index = siblings.indexOf(shot);
+    const sceneList = scenes.filter((scene) => scene.projectId === shot.projectId);
+    const fallback = sceneList[index % Math.max(sceneList.length, 1)]?.id || "";
+    return completeShot(shot, shot.projectId, fallback);
+  });
+
+  const storedTakes = Array.isArray(stored.takes) ? stored.takes : [];
+  const takes = storedTakes
+    .map((take) => completeTake({ ...take, projectId: take.projectId && projectIds.has(take.projectId) ? take.projectId : activeProjectId }, activeProjectId))
+    .filter((take): take is TakeRecord => Boolean(take));
 
   const storedJobs = Array.isArray(stored.jobs) ? stored.jobs : [];
   const jobs = storedJobs.map((job) => ({
@@ -279,6 +484,7 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
 
   const theme = stored.theme === "day" || stored.theme === "night" ? stored.theme : base.theme;
   return {
+    schemaVersion: 2,
     theme,
     projects,
     activeProjectId,
@@ -289,6 +495,10 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
     editorOpen: Boolean(stored.editorOpen),
     shots,
     selectedShotId: stored.selectedShotId || shots.find((shot) => shot.projectId === activeProjectId)?.id || "",
+    scenes,
+    selectedSceneId: stored.selectedSceneId || scenes.find((scene) => scene.projectId === activeProjectId)?.id || "",
+    takes,
+    selectedTakeId: stored.selectedTakeId || takes.find((take) => take.projectId === activeProjectId)?.id || "",
     selectedAudioTrack: stored.selectedAudioTrack || "Dialogue",
     jobs,
     selectedConnectorId: CONNECTORS.some((connector) => connector.id === stored.selectedConnectorId) ? stored.selectedConnectorId || "blender" : "blender",
@@ -311,6 +521,15 @@ type StudioContextValue = {
   shots: ShotRecord[];
   selectedShotId: string;
   selectedShot: ShotRecord | undefined;
+  scenes: SceneRecord[];
+  selectedSceneId: string;
+  selectedScene: SceneRecord | undefined;
+  takes: TakeRecord[];
+  selectedTakeId: string;
+  selectedTake: TakeRecord | undefined;
+  storageBytes: number;
+  mediaReady: boolean;
+  warnings: ReturnType<typeof continuityWarnings>;
   selectedAudioTrack: string;
   jobs: JobRecord[];
   selectedConnectorId: string;
@@ -342,7 +561,23 @@ type StudioContextValue = {
   addCharacter: (name: string) => string | null;
   deleteCharacter: (id: string) => void;
   selectShot: (id: string) => void;
-  updateShot: (id: string, patch: Partial<Pick<ShotRecord, "label" | "action" | "camera" | "location">>) => void;
+  addShot: () => void;
+  deleteShot: (id: string) => void;
+  selectScene: (id: string) => void;
+  addScene: () => void;
+  updateScene: (id: string, patch: Partial<SceneRecord>) => void;
+  duplicateScene: (id: string) => void;
+  deleteScene: (id: string) => void;
+  moveScene: (fromId: string, toId: string) => void;
+  approveScene: (id: string) => void;
+  confirmSceneVersion: (id: string) => void;
+  markSceneNeedsReview: (id: string) => void;
+  removeSceneCharacter: (sceneId: string, characterId: string) => void;
+  selectTake: (id: string) => void;
+  saveTake: (draft: TakeDraft) => Promise<string | null>;
+  updateTake: (id: string, patch: Partial<Pick<TakeRecord, "name" | "notes" | "dialogue" | "sceneId" | "shotId" | "approval" | "characterId">>) => void;
+  deleteTake: (id: string) => Promise<void>;
+  updateShot: (id: string, patch: Partial<Pick<ShotRecord, "label" | "action" | "camera" | "location" | "sceneId" | "movement">>) => void;
   setSelectedAudioTrack: (track: string) => void;
   recordLocalExport: () => void;
   selectConnector: (id: string) => void;
@@ -362,6 +597,22 @@ function withNotice(notices: Notice[], text: string): Notice[] {
 export function StudioProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<StudioState>(INITIAL);
   const [ready, setReady] = useState(false);
+  const [mediaIds, setMediaIds] = useState<string[]>([]);
+  const [storageBytes, setStorageBytes] = useState(0);
+  const [mediaReady, setMediaReady] = useState(false);
+
+  async function refreshMedia() {
+    try {
+      const listed = await listMedia();
+      setMediaIds(listed.ids);
+      setStorageBytes(listed.bytes);
+    } catch {
+      setMediaIds([]);
+      setStorageBytes(0);
+    } finally {
+      setMediaReady(true);
+    }
+  }
 
   useEffect(() => {
     try {
@@ -375,6 +626,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(STORAGE_KEY);
     }
     setReady(true);
+    void refreshMedia();
   }, []);
 
   useEffect(() => {
@@ -387,9 +639,22 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     const activeProject = state.projects.find((project) => project.id === state.activeProjectId) ?? state.projects[0];
     const characters = state.characters.filter((character) => character.projectId === activeProject.id);
     const shots = state.shots.filter((shot) => shot.projectId === activeProject.id);
+    const scenes = state.scenes.filter((scene) => scene.projectId === activeProject.id);
     const jobs = state.jobs.filter((job) => job.projectId === activeProject.id);
+    const takes = state.takes.filter((take) => take.projectId === activeProject.id);
     const selectedCharacter = characters.find((character) => character.id === state.selectedCharacterId) ?? characters[0];
     const selectedShot = shots.find((shot) => shot.id === state.selectedShotId) ?? shots[0];
+    const selectedScene = scenes.find((scene) => scene.id === state.selectedSceneId) ?? scenes[0];
+    const selectedTake = takes.find((take) => take.id === state.selectedTakeId) ?? takes.find((take) => take.characterId === selectedCharacter?.id);
+    const warnings = continuityWarnings({
+      projectId: activeProject.id,
+      characters,
+      scenes,
+      shots,
+      takes,
+      mediaIds: new Set(mediaIds),
+      mediaReady,
+    });
 
     function updateActive(patch: Partial<ProjectRecord>) {
       setState((current) => ({
@@ -413,6 +678,15 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       shots,
       selectedShotId: selectedShot?.id ?? "",
       selectedShot,
+      scenes,
+      selectedSceneId: selectedScene?.id ?? "",
+      selectedScene,
+      takes,
+      selectedTakeId: selectedTake?.id ?? "",
+      selectedTake,
+      storageBytes,
+      mediaReady,
+      warnings,
       selectedAudioTrack: state.selectedAudioTrack,
       jobs,
       selectedConnectorId: state.selectedConnectorId,
@@ -436,6 +710,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           projects: [blankProject(id, title, "Draft", title), ...current.projects],
           activeProjectId: id,
           shots: [...shotsFor(id), ...current.shots],
+          scenes: [...scenesFor(id), ...current.scenes],
           jobs: [...sampleJobs(id), ...current.jobs],
           editorOpen: false,
           notices: withNotice(current.notices, `“${title}” is saved on this device only.`),
@@ -447,16 +722,19 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           ...current,
           projects: current.projects.map((project) => (project.id === id ? { ...project, ...patch } : project)),
         })),
-      deleteProject: (id) =>
+      deleteProject: (id) => {
+        const doomed = state.takes.filter((take) => take.projectId === id).map((take) => take.mediaId);
         setState((current) => {
           const removed = current.projects.find((project) => project.id === id);
           let projects = current.projects.filter((project) => project.id !== id);
           let shotsForState = current.shots.filter((shot) => shot.projectId !== id);
           let jobsForState = current.jobs.filter((job) => job.projectId !== id);
+          let scenesForState = current.scenes.filter((scene) => scene.projectId !== id);
           if (projects.length === 0) {
             const replacementId = crypto.randomUUID();
             projects = [blankProject(replacementId, "Untitled production", "Feature")];
             shotsForState = shotsFor(replacementId);
+            scenesForState = scenesFor(replacementId);
             jobsForState = sampleJobs(replacementId);
           }
           const activeProjectId = projects.some((project) => project.id === current.activeProjectId) ? current.activeProjectId : projects[0].id;
@@ -464,13 +742,17 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             ...current,
             projects,
             shots: shotsForState,
+            scenes: scenesForState,
             jobs: jobsForState,
             characters: current.characters.filter((character) => character.projectId !== id),
+            takes: current.takes.filter((take) => take.projectId !== id),
             activeProjectId,
             editorOpen: false,
             notices: withNotice(current.notices, `“${removed?.title ?? "Project"}” was deleted from this device.`),
           };
-        }),
+        });
+        void Promise.all(doomed.map((mediaId) => deleteMedia(mediaId).catch(() => undefined))).then(() => refreshMedia());
+      },
       saveLocal: () => setState((current) => ({ ...current, notices: withNotice(current.notices, "Project saved on this device.") })),
       setDirectorNote: (note) => updateActive({ directorNote: note }),
       saveDirection: () => {
@@ -572,6 +854,207 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           notices: withNotice(current.notices, "Character deleted from this project on this device."),
         })),
       selectShot: (id) => setState((current) => ({ ...current, selectedShotId: id })),
+      addShot: () =>
+        setState((current) => {
+          const scene = current.scenes.find((item) => item.id === current.selectedSceneId && item.projectId === current.activeProjectId);
+          const count = current.shots.filter((shot) => shot.projectId === current.activeProjectId).length + 1;
+          const id = crypto.randomUUID();
+          return {
+            ...current,
+            selectedShotId: id,
+            shots: [
+              ...current.shots,
+              {
+                id,
+                projectId: current.activeProjectId,
+                sceneId: scene?.id || "",
+                label: `Shot ${count}`,
+                action: "",
+                color: ["#3e547a", "#625273", "#3a6672"][count % 3],
+                camera: "Wide",
+                movement: "",
+                location: scene?.location || "",
+              },
+            ],
+            notices: withNotice(current.notices, "Shot added on this device."),
+          };
+        }),
+      deleteShot: (id) =>
+        setState((current) => ({
+          ...current,
+          shots: current.shots.filter((shot) => shot.id !== id),
+          notices: withNotice(current.notices, "Shot deleted from this project on this device."),
+        })),
+      selectScene: (id) => setState((current) => ({ ...current, selectedSceneId: id })),
+      addScene: () =>
+        setState((current) => {
+          const id = crypto.randomUUID();
+          const number = current.scenes.filter((scene) => scene.projectId === current.activeProjectId).length + 1;
+          return {
+            ...current,
+            selectedSceneId: id,
+            scenes: [
+              ...current.scenes,
+              completeScene({ id, projectId: current.activeProjectId, number, title: "New scene", color: "#375377" }, current.activeProjectId),
+            ],
+            notices: withNotice(current.notices, "Scene added on this device."),
+          };
+        }),
+      updateScene: (id, patch) =>
+        setState((current) => ({
+          ...current,
+          scenes: current.scenes.map((scene) => (scene.id === id ? { ...scene, ...patch, id: scene.id, projectId: scene.projectId } : scene)),
+        })),
+      duplicateScene: (id) =>
+        setState((current) => {
+          const source = current.scenes.find((scene) => scene.id === id);
+          if (!source) return current;
+          const copyId = crypto.randomUUID();
+          return {
+            ...current,
+            selectedSceneId: copyId,
+            scenes: [
+              ...current.scenes,
+              completeScene(
+                { ...source, id: copyId, title: `${source.title} copy`, status: "Needs review", stage: "Draft", approvedFingerprint: "", number: source.number + 1 },
+                source.projectId,
+              ),
+            ],
+            notices: withNotice(current.notices, "Scene duplicated on this device."),
+          };
+        }),
+      deleteScene: (id) =>
+        setState((current) => ({
+          ...current,
+          scenes: current.scenes.filter((scene) => scene.id !== id),
+          shots: current.shots.map((shot) => (shot.sceneId === id ? { ...shot, sceneId: "" } : shot)),
+          notices: withNotice(current.notices, "Scene deleted on this device. Linked shots were left unassigned."),
+        })),
+      moveScene: (fromId, toId) =>
+        setState((current) => {
+          const mine = current.scenes.filter((scene) => scene.projectId === current.activeProjectId);
+          const rest = current.scenes.filter((scene) => scene.projectId !== current.activeProjectId);
+          const from = mine.findIndex((scene) => scene.id === fromId);
+          const to = mine.findIndex((scene) => scene.id === toId);
+          if (from < 0 || to < 0 || from === to) return current;
+          const next = [...mine];
+          const [item] = next.splice(from, 1);
+          next.splice(to, 0, item);
+          return { ...current, scenes: [...rest, ...next] };
+        }),
+      approveScene: (id) =>
+        setState((current) => ({
+          ...current,
+          scenes: current.scenes.map((scene) =>
+            scene.id === id ? { ...scene, status: "Approved", stage: "Approved", approvedFingerprint: sceneFingerprint(scene) } : scene,
+          ),
+          notices: withNotice(current.notices, "Scene approved on this device. Animation and audio tools are not connected."),
+        })),
+      confirmSceneVersion: (id) =>
+        setState((current) => ({
+          ...current,
+          scenes: current.scenes.map((scene) => (scene.id === id ? { ...scene, approvedFingerprint: sceneFingerprint(scene) } : scene)),
+          notices: withNotice(current.notices, "This approved version was confirmed. The scene text was not rewritten."),
+        })),
+      markSceneNeedsReview: (id) =>
+        setState((current) => ({
+          ...current,
+          scenes: current.scenes.map((scene) => (scene.id === id ? { ...scene, status: "Needs review", stage: "Continuity review" } : scene)),
+          notices: withNotice(current.notices, "Scene marked needs review. Earlier text was kept."),
+        })),
+      removeSceneCharacter: (sceneId, characterId) =>
+        setState((current) => ({
+          ...current,
+          scenes: current.scenes.map((scene) =>
+            scene.id === sceneId ? { ...scene, characterIds: scene.characterIds.filter((id) => id !== characterId) } : scene,
+          ),
+        })),
+      selectTake: (id) => setState((current) => ({ ...current, selectedTakeId: id })),
+      saveTake: async (draft) => {
+        if (!draft.characterId) return "Select a character before saving a take.";
+        if (!draft.blob || draft.blob.size === 0) return "Record a performance before saving.";
+        const id = crypto.randomUUID();
+        const mediaId = crypto.randomUUID();
+        const createdAt = new Date().toISOString();
+        try {
+          await putMedia({
+            id: mediaId,
+            projectId: activeProject.id,
+            takeId: id,
+            blob: draft.blob,
+            mime: draft.mime || "video/webm",
+            bytes: draft.blob.size,
+            createdAt,
+          });
+        } catch (error) {
+          return storageError(error);
+        }
+        setState((current) => {
+          const character = current.characters.find((item) => item.id === draft.characterId);
+          const count = current.takes.filter((take) => take.characterId === draft.characterId).length + 1;
+          return {
+            ...current,
+            selectedTakeId: id,
+            selectedCharacterId: draft.characterId,
+            selectedSceneId: draft.sceneId || current.selectedSceneId,
+            selectedShotId: draft.shotId || current.selectedShotId,
+            takes: [
+              {
+                id,
+                projectId: current.activeProjectId,
+                characterId: draft.characterId,
+                sceneId: draft.sceneId,
+                shotId: draft.shotId,
+                name: draft.name.trim() || `${character?.name ?? "Character"} take ${count}`,
+                notes: draft.notes,
+                dialogue: draft.dialogue,
+                durationMs: draft.durationMs,
+                createdAt,
+                approval: "Draft",
+                mediaId,
+                mime: draft.mime || "video/webm",
+                bytes: draft.blob.size,
+                hasAudio: draft.hasAudio,
+                hasVideo: draft.hasVideo,
+                cameraLabel: draft.cameraLabel,
+                microphoneLabel: draft.microphoneLabel,
+                tracking: "Raw recording only",
+                retarget: "Not available",
+              },
+              ...current.takes,
+            ],
+            scenes: current.scenes.map((scene) =>
+              scene.id === draft.sceneId && !scene.characterIds.includes(draft.characterId)
+                ? { ...scene, characterIds: [...scene.characterIds, draft.characterId] }
+                : scene,
+            ),
+            notices: withNotice(current.notices, `Raw recording saved for ${character?.name ?? "the selected character"}. It was not retargeted.`),
+          };
+        });
+        await refreshMedia();
+        return null;
+      },
+      updateTake: (id, patch) =>
+        setState((current) => ({
+          ...current,
+          takes: current.takes.map((take) => (take.id === id ? { ...take, ...patch, id: take.id, projectId: take.projectId, mediaId: take.mediaId } : take)),
+        })),
+      deleteTake: async (id) => {
+        const mediaId = state.takes.find((take) => take.id === id)?.mediaId;
+        if (mediaId) {
+          try {
+            await deleteMedia(mediaId);
+          } catch {
+            setState((current) => ({ ...current, notices: withNotice(current.notices, "The take was removed. The recording file could not be deleted.") }));
+          }
+        }
+        setState((current) => ({
+          ...current,
+          takes: current.takes.filter((take) => take.id !== id),
+          notices: withNotice(current.notices, "Take deleted from this character on this device."),
+        }));
+        await refreshMedia();
+      },
       updateShot: (id, patch) =>
         setState((current) => ({
           ...current,
@@ -590,7 +1073,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       selectConnector: (id) => setState((current) => ({ ...current, selectedConnectorId: id })),
       setConnectorFilter: (filter) => setState((current) => ({ ...current, connectorFilter: filter })),
     };
-  }, [ready, state]);
+  }, [mediaIds, mediaReady, ready, state, storageBytes]);
 
   return <StudioContext.Provider value={value}>{children}</StudioContext.Provider>;
 }

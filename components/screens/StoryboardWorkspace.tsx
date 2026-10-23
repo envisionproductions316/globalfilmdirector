@@ -1,33 +1,67 @@
 "use client";
 
+import { useState } from "react";
+import { ContinuityBoard, GraphBoard, SceneDetail, SequenceBoard } from "@/components/production/Boards";
 import { Pipeline } from "@/components/ui/Pipeline";
+import { ViewSwitch } from "@/components/ui/ViewSwitch";
 import { useStudio } from "@/lib/studio";
+
+const VIEWS = ["Shots", "Sequence", "Scene", "Continuity", "Graph"];
 
 export function StoryboardWorkspace() {
   const studio = useStudio();
+  const [view, setView] = useState("Shots");
 
   return (
     <section>
-      <h1 className="m-0 text-[26px] font-bold">06 · Scene Builder & Storyboard</h1>
-      <p className="mt-2 text-[15px] text-muted">Create scenes, shots, locations, and camera movement</p>
-      <article className="mt-5 rounded-[10px] bg-card px-5 py-4">
-        <h2 className="m-0 text-base font-bold">Storyboard & Shots</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {studio.shots.map((shot) => (
-            <button
-              key={shot.id}
-              type="button"
-              className={`flex min-h-[168px] items-end rounded-[9px] p-3 text-left text-[15px] text-[#f1f6ff] ${
-                shot.id === studio.selectedShotId ? "outline-2 outline-offset-2 outline-ink" : ""
-              }`}
-              style={{ background: shot.color }}
-              onClick={() => studio.selectShot(shot.id)}
-            >
-              {shot.label} • {shot.action}
-            </button>
-          ))}
-        </div>
-      </article>
+      <h1 className="m-0 text-[26px] font-bold">
+        {view === "Sequence" ? "19 · Storyboard Sequence & Continuity" : view === "Scene" ? "20 · Scene Detail & Approval Handoff" : view === "Graph" ? "22 · Connected Production Graph" : view === "Continuity" ? "26 · Continuity Rules & Conflict Review" : "06 · Scene Builder & Storyboard"}
+      </h1>
+      <p className="mt-2 text-[15px] text-muted">
+        {view === "Sequence" ? "Organize scenes into a continuous story. No continuity service is connected." : view === "Scene" ? "Edit a scene and keep its linked notes on this device." : view === "Graph" ? "Track scene, character, and take records for this project." : view === "Continuity" ? "Review conflicts without rewriting approved work." : "Create scenes, shots, locations, and camera movement"}
+      </p>
+      <ViewSwitch views={VIEWS} value={view} onChange={setView} />
+      {view === "Shots" ? (
+        <article className="mt-5 rounded-[10px] bg-card px-5 py-4">
+          <h2 className="m-0 text-base font-bold">Storyboard & Shots</h2>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" className="h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent" onClick={studio.addShot}>Add shot</button>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {studio.shots.map((shot) => {
+              const scene = studio.scenes.find((item) => item.id === shot.sceneId);
+              return (
+              <button
+                key={shot.id}
+                type="button"
+                className={`flex min-h-[168px] items-end rounded-[9px] p-3 text-left text-[15px] text-[#f1f6ff] ${
+                  shot.id === studio.selectedShotId ? "outline-2 outline-offset-2 outline-ink" : ""
+                }`}
+                style={{ background: shot.color }}
+                onClick={() => studio.selectShot(shot.id)}
+              >
+                {shot.label} • {shot.action || "No action"} • {scene ? scene.title : "No scene"}
+              </button>
+              );
+            })}
+          </div>
+        </article>
+      ) : null}
+      {view === "Sequence" ? <SequenceBoard /> : null}
+      {view === "Scene" ? (
+        <>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {studio.scenes.map((scene) => (
+              <button key={scene.id} type="button" className={`h-9 rounded-md px-3 text-sm ${scene.id === studio.selectedSceneId ? "bg-active" : "bg-inset"}`} onClick={() => studio.selectScene(scene.id)}>
+                {scene.title}
+              </button>
+            ))}
+          </div>
+          <SceneDetail />
+        </>
+      ) : null}
+      {view === "Graph" ? <GraphBoard /> : null}
+      {view === "Continuity" ? <ContinuityBoard /> : null}
       <Pipeline />
     </section>
   );

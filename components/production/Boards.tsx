@@ -1,0 +1,444 @@
+"use client";
+
+import { useState } from "react";
+import { Timeline } from "@/components/ui/Timeline";
+import { useStudio } from "@/lib/studio";
+
+const buttonClass = "h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent";
+
+export function RoutingBoard() {
+  const routes = [
+    "Animation → Local worker → Approved provider",
+    "Voice → GCIE → Approved backup",
+    "Image → ComfyUI → Cloud provider",
+    "Editing → FFmpeg / compatible NLE",
+    "Storage → Envision Cloud",
+    "Unavailable route → Capability gap",
+  ];
+  return (
+    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      <article className="rounded-[10px] bg-card px-5 py-4">
+        <h2 className="m-0 text-base font-bold">Routing Policy</h2>
+        <ul className="mt-4 list-none space-y-3 p-0 text-sm">
+          {["Preferred mode: Hybrid", "Priority: Quality / Speed / Cost / Privacy", "Budget approval: Required", "Local-first: Optional", "Fallback chain: Configurable", "Unsupported capability: Explain clearly"].map((item) => (
+            <li key={item} className="rounded-[9px] bg-inset px-3 py-3">{item}</li>
+          ))}
+        </ul>
+        <p className="mt-3 text-[13px] text-muted">APG is not connected. This policy is not routing any provider.</p>
+      </article>
+      <article className="rounded-[10px] bg-card px-5 py-4">
+        <h2 className="m-0 text-base font-bold">Capability Routes</h2>
+        <ul className="mt-4 list-none space-y-2 p-0 text-sm">
+          {routes.map((route) => (
+            <li key={route} className="rounded-[9px] bg-inset px-3 py-4">
+              {route}
+              <span className="mt-1 block text-xs text-muted">Not connected</span>
+            </li>
+          ))}
+        </ul>
+      </article>
+    </div>
+  );
+}
+
+export function WorkerBoard() {
+  const studio = useStudio();
+  const diagnostics = ["Worker online / offline", "Provider latency", "Render ETA (when known)", "Job retries", "Memory / GPU utilization", "Cache / proxy status", "Error details", "Fallback eligibility"];
+  return (
+    <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,0.8fr)]">
+      <article className="rounded-[10px] bg-card px-5 py-4">
+        <h2 className="m-0 text-base font-bold">Job Queue & Performance</h2>
+        <ul className="mt-4 list-none space-y-2 p-0">
+          {studio.jobs.map((job) => (
+            <li key={job.id} className="rounded-[9px] bg-inset px-4 py-3">
+              <p className="m-0">{job.label} · {job.state}{job.sample ? " · sample" : ""}</p>
+              <p className="mt-1 mb-0 text-xs text-muted">No worker is connected. Queue time, provider, retry, and logs are not available.</p>
+            </li>
+          ))}
+        </ul>
+      </article>
+      <article className="rounded-[10px] bg-card px-5 py-4">
+        <h2 className="m-0 text-base font-bold">Diagnostics</h2>
+        <ul className="mt-4 list-none space-y-2 p-0 text-sm">
+          {diagnostics.map((item) => (
+            <li key={item} className="rounded-[9px] bg-inset px-3 py-2">
+              {item}
+              <span className="mt-1 block text-xs text-muted">Not reported</span>
+            </li>
+          ))}
+        </ul>
+      </article>
+    </div>
+  );
+}
+
+const READINESS = [
+  ["Camera & microphone permissions", "Idle until you start the camera on the Capture page."],
+  ["Face tracking support", "Not available. Capture does not track a face."],
+  ["Body / hand tracking support", "Not available."],
+  ["Character rig compatibility", "Not connected. No rig service is installed."],
+  ["Live preview capability", "The character preview does not mirror the camera."],
+  ["Voice model authorization", "Not authorized. No voice service is connected."],
+  ["Local worker connection", "Not connected."],
+  ["Remote provider connection", "Not connected."],
+  ["Asset dependency integrity", "Records stay on this device. No remote asset check ran."],
+];
+
+export function ReadinessBoard() {
+  const studio = useStudio();
+  const [note, setNote] = useState("");
+  return (
+    <article className="mt-4 rounded-[10px] bg-card px-5 py-4">
+      <h2 className="m-0 text-base font-bold">Feature Status & Recovery</h2>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {READINESS.map(([title, detail]) => (
+          <section key={title} className="rounded-[9px] bg-inset px-4 py-4">
+            <h3 className="m-0 text-sm font-bold">{title}</h3>
+            <p className="mt-2 mb-0 text-[13px] text-muted">{detail}</p>
+            <button type="button" className="mt-3 text-xs text-muted" onClick={() => { setNote(`${title}: nothing was retried. No recovery service is connected.`); studio.recordNote(`${title} was not retried. No recovery service is connected.`); }}>
+              Details · Troubleshoot · Retry
+            </button>
+          </section>
+        ))}
+      </div>
+      {note ? <p className="mt-3 text-sm text-muted">{note}</p> : null}
+    </article>
+  );
+}
+
+export function SequenceBoard() {
+  const studio = useStudio();
+  const [dragId, setDragId] = useState("");
+  const [note, setNote] = useState("");
+  return (
+    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_16rem]">
+      <article className="rounded-[10px] bg-card px-5 py-4">
+        <h2 className="m-0 text-base font-bold">Story Sequence • Drag to reorder</h2>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {studio.scenes.map((scene) => (
+            <div
+              key={scene.id}
+              draggable
+              onDragStart={() => setDragId(scene.id)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={() => dragId && studio.moveScene(dragId, scene.id)}
+              className="rounded-[9px] bg-inset p-3 text-left"
+              onClick={() => studio.selectScene(scene.id)}
+            >
+              <span className="block h-16 rounded-[8px]" style={{ background: scene.color }} />
+              <span className="mt-3 block text-sm font-bold">{scene.title}</span>
+              <span className="mt-1 block text-xs text-muted">{scene.status}</span>
+              <span className="mt-2 flex gap-2">
+                <button type="button" className="rounded bg-card px-2 py-1 text-xs text-ink" onClick={(event) => { event.stopPropagation(); const previous = studio.scenes[studio.scenes.indexOf(scene) - 1]; if (previous) studio.moveScene(scene.id, previous.id); }}>Earlier</button>
+                <button type="button" className="rounded bg-card px-2 py-1 text-xs text-ink" onClick={(event) => { event.stopPropagation(); const next = studio.scenes[studio.scenes.indexOf(scene) + 1]; if (next) studio.moveScene(scene.id, next.id); }}>Later</button>
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button type="button" className={buttonClass} onClick={studio.addScene}>+ Add scene</button>
+          <button type="button" className={buttonClass} onClick={() => { setNote("No sequence model is connected. The order was not changed."); studio.recordNote("AI arrange was not run. No sequence model is connected."); }}>AI arrange sequence</button>
+          <button type="button" className={buttonClass} onClick={() => { setNote("Local check only. Character, wardrobe, and voice fields are stored on this device. No continuity service reviewed them."); studio.recordNote("Continuity check stayed on this device. No continuity service is connected."); }}>Check continuity</button>
+          <button type="button" className={buttonClass} onClick={() => { setNote("Approved scenes were marked for Edit on this device. The editor did not import them."); studio.recordNote("Approved scenes were noted for Edit. No editor import ran."); }}>Send approved to Edit</button>
+        </div>
+        {note ? <p className="mt-3 text-sm text-muted">{note}</p> : null}
+      </article>
+      <article className="rounded-[10px] bg-card px-5 py-4">
+        <h2 className="m-0 text-base font-bold">Continuity Assistant</h2>
+        <ul className="mt-4 list-none space-y-3 p-0 text-sm">
+          {["Character identity", "Wardrobe consistency", "Voice continuity", "Location / time check", "Entry / exit positions", "Props and camera axis", "Transitions to next scene"].map((item) => (
+            <li key={item}>{item} · not reviewed</li>
+          ))}
+        </ul>
+        <p className="mt-3 text-[13px] text-muted">No continuity assistant is connected.</p>
+      </article>
+    </div>
+  );
+}
+
+export function SceneDetail() {
+  const studio = useStudio();
+  const scene = studio.selectedScene;
+  const [note, setNote] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  if (!scene) return <p className="mt-4 text-sm text-muted">This project has no scenes.</p>;
+  const field = "mt-1 w-full rounded-md bg-inset px-2 py-2 text-sm text-ink";
+  const linkedTakes = studio.takes.filter((take) => take.sceneId === scene.id);
+  const linkedShots = studio.shots.filter((shot) => shot.sceneId === scene.id);
+  return (
+    <div className="mt-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,0.8fr)]">
+        <article className="rounded-[10px] bg-card px-5 py-4">
+          <h2 className="m-0 text-base font-bold">{scene.title}</h2>
+          <label className="mt-3 block text-xs text-muted">
+            Title
+            <input className={field} value={scene.title} onChange={(event) => studio.updateScene(scene.id, { title: event.target.value })} />
+          </label>
+          <label className="mt-3 block text-xs text-muted">
+            Description
+            <textarea className={field} value={scene.description} onChange={(event) => studio.updateScene(scene.id, { description: event.target.value })} />
+          </label>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="text-xs text-muted">
+              Location
+              <input className={field} value={scene.location} onChange={(event) => studio.updateScene(scene.id, { location: event.target.value, world: event.target.value })} />
+            </label>
+            <label className="text-xs text-muted">
+              Time of day
+              <input className={field} value={scene.timeOfDay} onChange={(event) => studio.updateScene(scene.id, { timeOfDay: event.target.value })} />
+            </label>
+            <label className="text-xs text-muted">
+              Camera
+              <input className={field} value={scene.camera} onChange={(event) => studio.updateScene(scene.id, { camera: event.target.value })} />
+            </label>
+            <label className="text-xs text-muted">
+              Movement
+              <input className={field} value={scene.movement} onChange={(event) => studio.updateScene(scene.id, { movement: event.target.value })} />
+            </label>
+            <label className="text-xs text-muted">
+              Duration
+              <input className={field} value={scene.duration} onChange={(event) => studio.updateScene(scene.id, { duration: event.target.value })} />
+            </label>
+            <label className="text-xs text-muted">
+              Music
+              <input className={field} value={scene.music} onChange={(event) => studio.updateScene(scene.id, { music: event.target.value })} />
+            </label>
+          </div>
+          <label className="mt-3 block text-xs text-muted">
+            Action
+            <textarea className={field} value={scene.action} onChange={(event) => studio.updateScene(scene.id, { action: event.target.value })} />
+          </label>
+          <label className="mt-3 block text-xs text-muted">
+            Dialogue
+            <textarea className={field} value={scene.dialogue} onChange={(event) => studio.updateScene(scene.id, { dialogue: event.target.value })} />
+          </label>
+          <label className="mt-3 block text-xs text-muted">
+            Sound notes
+            <textarea className={field} value={scene.soundNotes} onChange={(event) => studio.updateScene(scene.id, { soundNotes: event.target.value })} />
+          </label>
+          <p className="mt-3 text-sm text-muted">Stage {scene.stage}. Number {scene.number}. Passport {scene.passport}. Rights {scene.rights}.</p>
+        </article>
+        <article className="rounded-[10px] bg-card px-5 py-4">
+          <h2 className="m-0 text-base font-bold">Linked Production Assets</h2>
+          <h3 className="mt-4 text-sm font-bold">Characters</h3>
+          <ul className="mt-2 list-none space-y-2 p-0 text-sm">
+            {studio.characters.map((character) => (
+              <li key={character.id}>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={scene.characterIds.includes(character.id)}
+                    onChange={(event) =>
+                      studio.updateScene(scene.id, {
+                        characterIds: event.target.checked
+                          ? [...scene.characterIds, character.id]
+                          : scene.characterIds.filter((id) => id !== character.id),
+                      })
+                    }
+                  />
+                  {character.name}
+                </label>
+              </li>
+            ))}
+          </ul>
+          <h3 className="mt-4 text-sm font-bold">Shots</h3>
+          <ul className="mt-2 list-none space-y-2 p-0 text-sm">
+            {linkedShots.length === 0 ? <li className="text-muted">No shots assigned.</li> : linkedShots.map((shot) => <li key={shot.id}>{shot.label} · {shot.camera}</li>)}
+          </ul>
+          <h3 className="mt-4 text-sm font-bold">Takes</h3>
+          <ul className="mt-2 list-none space-y-2 p-0 text-sm">
+            {linkedTakes.length === 0 ? <li className="text-muted">No recordings assigned.</li> : linkedTakes.map((take) => <li key={take.id}>{take.name} · {studio.characters.find((character) => character.id === take.characterId)?.name ?? "Missing character"}</li>)}
+          </ul>
+        </article>
+      </div>
+      <article className="mt-4 rounded-[10px] bg-card px-5 py-4">
+        <h2 className="m-0 text-base font-bold">Approval & Handoff</h2>
+        <p className="mt-3 text-sm">Draft → Continuity Review → Approved → Animation / Edit / Audio</p>
+        <p className="mt-2 text-[13px] text-muted">Current stage: {scene.stage}. Handoffs stay on this device.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" className={buttonClass} onClick={() => studio.approveScene(scene.id)}>Approve scene</button>
+          <button type="button" className={buttonClass} onClick={() => studio.duplicateScene(scene.id)}>Duplicate scene</button>
+          {confirmDelete ? (
+            <button type="button" className={buttonClass} onClick={() => studio.deleteScene(scene.id)}>Confirm delete</button>
+          ) : (
+            <button type="button" className={buttonClass} onClick={() => setConfirmDelete(true)}>Delete scene</button>
+          )}
+          <button type="button" className={buttonClass} onClick={() => { setNote("Noted for animation. No animation tool is connected."); studio.recordNote("Scene noted for animation. No animation tool is connected."); }}>Send to animation</button>
+          <button type="button" className={buttonClass} onClick={() => { setNote("Noted for music and audio. No mix engine is connected."); studio.recordNote("Scene noted for audio. No mix engine is connected."); }}>Send to Music & Audio</button>
+        </div>
+        {note ? <p className="mt-3 text-sm text-muted">{note}</p> : null}
+      </article>
+    </div>
+  );
+}
+
+export function ContinuityBoard() {
+  const studio = useStudio();
+  const [sceneForShot, setSceneForShot] = useState<Record<string, string>>({});
+  return (
+    <article className="mt-4 rounded-[10px] bg-card px-5 py-4">
+      <h2 className="m-0 text-base font-bold">26 · Continuity Rules & Conflict Review</h2>
+      <p className="mt-2 text-sm text-muted">These checks stay on this device. Approving or editing remains your choice. Nothing here rewrites a scene on its own.</p>
+      {studio.warnings.length === 0 ? <p className="mt-4 text-sm">No continuity warnings for {studio.activeProject.title}.</p> : null}
+      <ul className="mt-4 list-none space-y-3 p-0">
+        {studio.warnings.map((warning) => (
+          <li key={warning.id} className="rounded-[9px] bg-inset px-3 py-3 text-sm">
+            <p className="m-0">{warning.message}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {warning.kind === "missing-character" ? (
+                <button type="button" className={buttonClass} onClick={() => studio.removeSceneCharacter(warning.sceneId, warning.characterId)}>Remove missing character</button>
+              ) : null}
+              {warning.kind === "approved-modified" ? (
+                <>
+                  <button type="button" className={buttonClass} onClick={() => studio.confirmSceneVersion(warning.sceneId)}>Confirm this version</button>
+                  <button type="button" className={buttonClass} onClick={() => studio.markSceneNeedsReview(warning.sceneId)}>Mark needs review</button>
+                </>
+              ) : null}
+              {warning.kind === "shot-scene" ? (
+                <>
+                  <select className="h-9 rounded-md bg-card px-2 text-sm" value={sceneForShot[warning.shotId] || studio.selectedSceneId} onChange={(event) => setSceneForShot((current) => ({ ...current, [warning.shotId]: event.target.value }))}>
+                    {studio.scenes.map((scene) => (
+                      <option key={scene.id} value={scene.id}>{scene.title}</option>
+                    ))}
+                  </select>
+                  <button type="button" className={buttonClass} onClick={() => studio.updateShot(warning.shotId, { sceneId: sceneForShot[warning.shotId] || studio.selectedSceneId })}>Assign shot</button>
+                </>
+              ) : null}
+              {warning.kind === "take-cast" ? (
+                <button type="button" className={buttonClass} onClick={() => studio.updateScene(warning.sceneId, { characterIds: [...new Set([...(studio.scenes.find((scene) => scene.id === warning.sceneId)?.characterIds ?? []), warning.characterId])] })}>Add character to scene</button>
+              ) : null}
+              {warning.kind === "take-character" || warning.kind === "missing-media" || warning.kind === "take-scene" ? (
+                <button type="button" className={buttonClass} onClick={() => void studio.deleteTake(warning.takeId)}>Delete take</button>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+export function GraphBoard() {
+  const studio = useStudio();
+  const [note, setNote] = useState("");
+  const columns = [
+    ["Scenes", studio.scenes.map((scene) => scene.title)],
+    ["Characters", studio.characters.map((character) => character.name)],
+    ["Performances", studio.takes.map((take) => take.name)],
+    ["Audio", ["Dialogue", "Lead vocal", "Music cues", "Sound effects"]],
+    ["Outputs", ["Storyboard", "Animation", "Final timeline", "Export"]],
+  ];
+  return (
+    <div className="mt-4">
+      <article className="rounded-[10px] bg-card px-5 py-4">
+        <h2 className="m-0 text-base font-bold">Production Graph • Linked Objects</h2>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {columns.map(([title, items]) => (
+            <section key={String(title)} className="rounded-[9px] bg-inset p-3">
+              <h3 className="m-0 text-sm font-bold">{title}</h3>
+              <ul className="mt-3 list-none space-y-2 p-0 text-sm">
+                {(items as string[]).length === 0 ? <li className="text-muted">None in this project</li> : null}
+                {(items as string[]).map((item, index) => (
+                  <li key={`${String(title)}-${index}`} className="rounded-[8px] bg-card px-3 py-3">{item}</li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+        <p className="mt-3 text-[13px] text-muted">Local map for {studio.activeProject.title}. Links are not sent to a render service.</p>
+      </article>
+      <article className="mt-4 rounded-[10px] bg-card px-5 py-4">
+        <h2 className="m-0 text-base font-bold">Change Impact Review</h2>
+        <p className="mt-3 text-sm">Changing a character voice may require lip-sync review, captions update, and a selected audio pass. None of those services are connected.</p>
+        <button type="button" className={`${buttonClass} mt-3`} onClick={() => { setNote("Affected items stay in this project: character voice, scene music cue, and captions. Nothing was re-rendered."); studio.recordNote("Impact preview stayed on this device. No re-render was started."); }}>Preview affected items</button>
+        {note ? <p className="mt-3 text-sm text-muted">{note}</p> : null}
+      </article>
+    </div>
+  );
+}
+
+export function CueBoard() {
+  const studio = useStudio();
+  const [note, setNote] = useState("");
+  return (
+    <div className="mt-4">
+      <article className="rounded-[10px] bg-card px-5 py-4">
+        <h2 className="m-0 text-base font-bold">Scene-aligned Music & Sound</h2>
+        <Timeline
+          tracks={[
+            { name: "Scene video", color: "#3a75c4" },
+            { name: "Character motion", color: "#378e94" },
+            { name: "Dialogue", color: "#765db0" },
+            { name: "Lead vocals", color: "#98794c" },
+            { name: "Instrumental", color: "#3a75c4" },
+            { name: "Sound effects", color: "#378e94" },
+            { name: "Captions", color: "#765db0" },
+          ]}
+        />
+        <p className="mt-3 text-[13px] text-muted">Bars are a cue map, not playing audio.</p>
+      </article>
+      <article className="mt-4 rounded-[10px] bg-card px-5 py-4">
+        <h2 className="m-0 text-base font-bold">Cue-to-Scene Mapping</h2>
+        <ul className="mt-3 list-none space-y-2 p-0 text-sm">
+          {studio.scenes.filter((scene) => scene.music !== "Pending").map((scene) => (
+            <li key={scene.id}>{scene.title} → {scene.music}</li>
+          ))}
+        </ul>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" className={buttonClass} onClick={() => { setNote("No beat grid is connected. Cues were not moved."); studio.recordNote("Align to beat was not run. No audio engine is connected."); }}>Align to beat</button>
+          <button type="button" className={buttonClass} onClick={() => { setNote("No sequence player is connected."); studio.recordNote("Sequence preview was not played. No audio engine is connected."); }}>Preview full sequence</button>
+          <button type="button" className={buttonClass} onClick={() => { setNote("Cue map saved on this device."); studio.saveLocal(); }}>Save cue map</button>
+        </div>
+        {note ? <p className="mt-3 text-sm text-muted">{note}</p> : null}
+      </article>
+    </div>
+  );
+}
+
+const QC = ["Scene order", "Character appearance", "Wardrobe and props", "Camera continuity", "Dialogue and lip sync", "Music cue alignment", "Caption timing", "Rights and budget"];
+
+export function AssemblyBoard() {
+  const studio = useStudio();
+  const [checked, setChecked] = useState<string[]>([]);
+  const [note, setNote] = useState("");
+  return (
+    <div className="mt-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,0.8fr)]">
+        <article className="rounded-[10px] bg-card px-5 py-4">
+          <h2 className="m-0 text-base font-bold">Final Assembly Preview</h2>
+          <div className="mt-4 grid min-h-[220px] place-items-center rounded-[9px] bg-[#37456d] p-4 text-center text-[#f1f6ff]">
+            Whole-film playback is not available. No cut has been rendered.
+          </div>
+          <p className="mt-3 text-sm text-muted">Scene transitions and music synchronization are checklist items, not a player.</p>
+        </article>
+        <article className="rounded-[10px] bg-card px-5 py-4">
+          <h2 className="m-0 text-base font-bold">Continuity & Quality Checks</h2>
+          <ul className="mt-4 list-none space-y-2 p-0 text-sm">
+            {QC.map((item) => (
+              <li key={item}>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={checked.includes(item)}
+                    onChange={(event) => setChecked((current) => event.target.checked ? [...current, item] : current.filter((entry) => entry !== item))}
+                  />
+                  {item}
+                </label>
+              </li>
+            ))}
+          </ul>
+        </article>
+      </div>
+      <article className="mt-4 rounded-[10px] bg-card px-5 py-4">
+        <h2 className="m-0 text-base font-bold">Revision History & Approvals</h2>
+        <p className="mt-3 text-sm">Scene edits stay in this project. Dependent services are not updated automatically.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" className={buttonClass} onClick={() => setNote("There is one local copy. No earlier render exists to compare.")}>Compare versions</button>
+          <button type="button" className={buttonClass} onClick={() => { setNote("No QC service ran. Checked items are your manual notes."); studio.recordNote("Continuity QC was not run. No QC service is connected."); }}>Run continuity QC</button>
+          <button type="button" className={buttonClass} onClick={() => { studio.recordLocalExport(); setNote("Export request recorded on this device. No approved cut was rendered."); }}>Export approved cut</button>
+        </div>
+        {note ? <p className="mt-3 text-sm text-muted">{note}</p> : null}
+      </article>
+    </div>
+  );
+}
