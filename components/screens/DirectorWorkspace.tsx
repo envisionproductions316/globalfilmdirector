@@ -37,8 +37,16 @@ export function DirectorWorkspace() {
             className="min-h-12 w-full resize-y bg-transparent text-base outline-none"
             value={studio.directorNote}
             onChange={(event) => studio.setDirectorNote(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                event.preventDefault();
+                const error = studio.saveDirection();
+                setMessage(error ?? "Saved in this project’s history. APG did not reply.");
+              }
+            }}
           />
         </label>
+        <p className="m-0 text-xs text-muted">Tip: Ctrl+Enter (or ⌘+Enter) saves direction.</p>
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
@@ -57,6 +65,15 @@ export function DirectorWorkspace() {
           >
             Continue to Characters
           </Link>
+          {studio.characters.length > 0 ? (
+            <Link
+              href="/capture"
+              className="inline-flex h-9 items-center rounded-[7px] bg-inset px-4 text-[13px] font-bold text-ink"
+              onClick={() => studio.setAssetCategory("characters")}
+            >
+              Record on Capture
+            </Link>
+          ) : null}
         </div>
         {message ? <p className="m-0 text-[13px] text-muted">{message}</p> : null}
       </article>

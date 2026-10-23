@@ -71,13 +71,19 @@ export function ProjectsWorkspace() {
           <Link href="/director" className="inline-flex h-9 items-center rounded-[7px] bg-inset px-4 text-[13px] text-ink">
             Open Director notes
           </Link>
-          <Link
-            href="/capture"
-            className="inline-flex h-9 items-center rounded-[7px] bg-inset px-4 text-[13px] text-ink"
-            onClick={() => studio.setAssetCategory("characters")}
-          >
-            Go to Capture
-          </Link>
+          {studio.characters.length > 0 ? (
+            <Link
+              href="/capture"
+              className="inline-flex h-9 items-center rounded-[7px] bg-inset px-4 text-[13px] text-ink"
+              onClick={() => studio.setAssetCategory("characters")}
+            >
+              Go to Capture
+            </Link>
+          ) : (
+            <span className="inline-flex h-9 items-center rounded-[7px] bg-inset px-4 text-[13px] text-muted" title="Add a character first">
+              Capture needs a character
+            </span>
+          )}
         </div>
       </article>
       <Pipeline />

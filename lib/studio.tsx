@@ -390,15 +390,6 @@ function completeTake(take: Partial<TakeRecord>, projectId: string): TakeRecord 
   };
 }
 
-function sampleJobs(projectId: string): JobRecord[] {
-  return [
-    { id: `${projectId}-job-1`, projectId, label: "Scene 01", state: "Completed", sample: true },
-    { id: `${projectId}-job-2`, projectId, label: "Scene 02", state: "Completed", sample: true },
-    { id: `${projectId}-job-3`, projectId, label: "Scene 03", state: "Rendering", sample: true },
-    { id: `${projectId}-job-4`, projectId, label: "Audio mix", state: "Waiting", sample: true },
-  ];
-}
-
 function blankProject(id: string, title: string, kind: string, directorNote = ""): ProjectRecord {
   return {
     id,
@@ -455,7 +446,7 @@ const INITIAL: StudioState = {
   timelineViews: [{ projectId: "p1", playheadMs: 0, pixelsPerSecond: 48 }],
   selectedClipId: "",
   selectedAudioTrack: "dialogue",
-  jobs: sampleJobs("p1"),
+  jobs: [],
   selectedConnectorId: "blender",
   connectorFilter: "All",
 };
@@ -579,10 +570,6 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
     projectId: job.projectId && projectIds.has(job.projectId) ? job.projectId : activeProjectId,
     sample: typeof job.sample === "boolean" ? job.sample : job.state !== "Recorded locally",
   }));
-  for (const project of projects) {
-    if (!jobs.some((job) => job.projectId === project.id)) jobs.push(...sampleJobs(project.id));
-  }
-
   const theme = stored.theme === "day" || stored.theme === "night" ? stored.theme : base.theme;
   const studioMode = stored.studioMode === "studio" ? "studio" : "director";
   const assetCategory = ASSET_CATEGORIES.some((item) => item.id === stored.assetCategory) ? (stored.assetCategory as AssetCategory) : base.assetCategory;
@@ -892,7 +879,29 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       setCapturePrefs: (patch) => setState((current) => ({ ...current, capturePrefs: { ...current.capturePrefs, ...patch } })),
       requestCaptureAction: (action) => setState((current) => ({ ...current, captureAction: action })),
       clearCaptureAction: () => setState((current) => ({ ...current, captureAction: "" })),
-      setActiveProjectId: (id) => setState((current) => ({ ...current, activeProjectId: id, editorOpen: false })),
+      setActiveProjectId: (id) =>
+        setState((current) => {
+          const characters = current.characters.filter((character) => character.projectId === id);
+          const shots = current.shots.filter((shot) => shot.projectId === id);
+          const scenes = current.scenes.filter((scene) => scene.projectId === id);
+          const takes = current.takes.filter((take) => take.projectId === id);
+          const clips = current.clips.filter((clip) => clip.projectId === id);
+          const nextCharacter = characters[0]?.id || "";
+          const nextTake =
+            (current.selectedTakeId && takes.some((take) => take.id === current.selectedTakeId) ? current.selectedTakeId : "") ||
+            takes.find((take) => take.characterId === nextCharacter)?.id ||
+            "";
+          return {
+            ...current,
+            activeProjectId: id,
+            editorOpen: false,
+            selectedCharacterId: nextCharacter,
+            selectedShotId: shots[0]?.id || "",
+            selectedSceneId: scenes[0]?.id || "",
+            selectedTakeId: nextTake,
+            selectedClipId: clips.some((clip) => clip.id === current.selectedClipId) ? current.selectedClipId : "",
+          };
+        }),
       setStatus: (status) => updateActive({ status }),
       setAccountName: (name) => setState((current) => ({ ...current, accountName: name })),
       createProject: (description) => {
@@ -900,6 +909,8 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         if (!prompt) return "Describe a film before creating a production.";
         const title = projectTitleFromPrompt(prompt) || "Untitled production";
         const id = crypto.randomUUID();
+        const nextScenes = scenesFor(id);
+        const nextShots = shotsFor(id);
         setState((current) => ({
           ...current,
           projects: [blankProject(id, title, "Draft", prompt), ...current.projects],
@@ -907,11 +918,14 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           selectedCharacterId: "",
           selectedTakeId: "",
           selectedClipId: "",
+          selectedSceneId: nextScenes[0]?.id || "",
+          selectedShotId: nextShots[0]?.id || "",
           assetCategory: "characters",
           studioMode: "director",
-          shots: [...shotsFor(id), ...current.shots],
-          scenes: [...scenesFor(id), ...current.scenes],
-          jobs: [...sampleJobs(id), ...current.jobs],
+          shots: [...nextShots, ...current.shots],
+          scenes: [...nextScenes, ...current.scenes],
+          // Real exports appear via recordExport after FFmpeg finishes — no sample queue rows.
+          jobs: current.jobs,
           mixes: [{ projectId: id, tracks: defaultMix() }, ...current.mixes],
           timelineViews: [{ projectId: id, playheadMs: 0, pixelsPerSecond: 48 }, ...current.timelineViews],
           editorOpen: false,
@@ -942,7 +956,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             projects = [blankProject(replacementId, "Untitled production", "Feature")];
             shotsForState = shotsFor(replacementId);
             scenesForState = scenesFor(replacementId);
-            jobsForState = sampleJobs(replacementId);
+            jobsForState = [];
             mixes = [{ projectId: replacementId, tracks: defaultMix() }];
             timelineViews = [{ projectId: replacementId, playheadMs: 0, pixelsPerSecond: 48 }];
           }

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { getMedia } from "@/lib/media-db";
 import { useStudio, type TakeRecord } from "@/lib/studio";
@@ -20,25 +21,28 @@ export function PerformanceEditor() {
   const [missing, setMissing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [keepWarning, setKeepWarning] = useState("");
+  const [placeMessage, setPlaceMessage] = useState("");
 
   useEffect(() => {
     let url = "";
     let cancelled = false;
     setMissing(false);
     if (!selected?.mediaId) return;
-    void getMedia(selected.mediaId).then((record) => {
-      if (cancelled) return;
-      if (!record) {
-        setMissing(true);
-        return;
-      }
-      url = URL.createObjectURL(record.blob);
-      if (videoRef.current) {
-        videoRef.current.src = url;
-      }
-    }).catch(() => {
-      if (!cancelled) setMissing(true);
-    });
+    void getMedia(selected.mediaId)
+      .then((record) => {
+        if (cancelled) return;
+        if (!record) {
+          setMissing(true);
+          return;
+        }
+        url = URL.createObjectURL(record.blob);
+        if (videoRef.current) {
+          videoRef.current.src = url;
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMissing(true);
+      });
     return () => {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
@@ -55,10 +59,27 @@ export function PerformanceEditor() {
     <article className="mt-4 rounded-[10px] bg-card px-5 py-4">
       <h2 className="m-0 text-base font-bold">Performance history · {character.name}</h2>
       <p className="mt-2 text-sm text-muted">Takes stay with this character. Saving here does not replace another character&apos;s recording. DNA, appearance, wardrobe, voice, and animation style stay in the inspector.</p>
-      {takes.length === 0 ? <p className="mt-3 text-sm text-muted">No recordings for {character.name} yet.</p> : null}
+      {takes.length === 0 ? (
+        <p className="mt-3 text-sm text-muted">
+          No recordings for {character.name} yet.{" "}
+          <Link href="/capture" className="text-accent" onClick={() => studio.setAssetCategory("characters")}>
+            Open Capture
+          </Link>{" "}
+          to record.
+        </p>
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
         {takes.map((take) => (
-          <button key={take.id} type="button" className={`h-9 rounded-md px-3 text-sm ${take.id === selected?.id ? "bg-active" : "bg-inset"}`} onClick={() => { setConfirmDelete(false); studio.selectTake(take.id); }}>
+          <button
+            key={take.id}
+            type="button"
+            className={`h-9 rounded-md px-3 text-sm ${take.id === selected?.id ? "bg-active" : "bg-inset"}`}
+            onClick={() => {
+              setConfirmDelete(false);
+              setPlaceMessage("");
+              studio.selectTake(take.id);
+            }}
+          >
             {take.name}
           </button>
         ))}
@@ -68,7 +89,9 @@ export function PerformanceEditor() {
           <div>
             <video ref={videoRef} className="max-h-64 w-full rounded-[9px] bg-[#30455f]" controls playsInline />
             {missing ? <p className="mt-2 text-sm text-muted">The recording file is missing from this device.</p> : null}
-            <p className="mt-2 text-xs text-muted">{formatDuration(selected.durationMs)} · {selected.cameraLabel} · {selected.microphoneLabel} · {selected.tracking} · Retarget {selected.retarget}</p>
+            <p className="mt-2 text-xs text-muted">
+              {formatDuration(selected.durationMs)} · {selected.cameraLabel} · {selected.microphoneLabel} · {selected.tracking} · Retarget {selected.retarget}
+            </p>
           </div>
           <div>
             <label className="block text-xs text-muted">
@@ -80,13 +103,21 @@ export function PerformanceEditor() {
               <select className={fieldClass} value={selected.sceneId} onChange={(event) => patch(selected, { sceneId: event.target.value })}>
                 <option value="">Unassigned</option>
                 {studio.scenes.map((scene) => (
-                  <option key={scene.id} value={scene.id}>{scene.title}</option>
+                  <option key={scene.id} value={scene.id}>
+                    {scene.title}
+                  </option>
                 ))}
               </select>
             </label>
             <label className="mt-3 block text-xs text-muted">
               Approval
-              <select className={fieldClass} value={selected.approval} onChange={(event) => patch(selected, { approval: event.target.value === "Approved" || event.target.value === "In review" ? event.target.value : "Draft" })}>
+              <select
+                className={fieldClass}
+                value={selected.approval}
+                onChange={(event) =>
+                  patch(selected, { approval: event.target.value === "Approved" || event.target.value === "In review" ? event.target.value : "Draft" })
+                }
+              >
                 <option>Draft</option>
                 <option>In review</option>
                 <option>Approved</option>
@@ -100,21 +131,64 @@ export function PerformanceEditor() {
               Performance notes
               <textarea className={fieldClass} value={selected.notes} onChange={(event) => patch(selected, { notes: event.target.value })} />
             </label>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent"
+                data-testid="place-performance-take"
+                onClick={() => {
+                  const error = studio.placeTake(selected.id);
+                  setPlaceMessage(error || `${selected.name} was placed on the shared timeline.`);
+                }}
+              >
+                Add to Timeline
+              </button>
+              <Link href="/edit" className="inline-flex h-9 items-center rounded-[7px] bg-inset px-3 text-sm" onClick={() => studio.setAssetCategory("media")}>
+                Open Edit
+              </Link>
+            </div>
+            {placeMessage ? <p className="mt-2 text-sm text-muted" data-testid="place-performance-message">{placeMessage}</p> : null}
             {keepWarning ? (
               <div className="mt-3">
                 <p className="text-sm">{keepWarning}</p>
                 <div className="mt-2 flex gap-2">
-                  <button type="button" className="h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent" onClick={() => { setKeepWarning(""); void studio.deleteTake(selected.id, true); }}>Delete the recording anyway</button>
-                  <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-sm" onClick={() => setKeepWarning("")}>Keep the recording</button>
+                  <button
+                    type="button"
+                    className="h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent"
+                    onClick={() => {
+                      setKeepWarning("");
+                      void studio.deleteTake(selected.id, true);
+                    }}
+                  >
+                    Delete the recording anyway
+                  </button>
+                  <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-sm" onClick={() => setKeepWarning("")}>
+                    Keep the recording
+                  </button>
                 </div>
               </div>
             ) : confirmDelete ? (
               <div className="mt-3 flex gap-2">
-                <button type="button" className="h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent" onClick={() => { void studio.deleteTake(selected.id).then((message) => { setConfirmDelete(false); if (message) setKeepWarning(message); }); }}>Delete take</button>
-                <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-sm" onClick={() => setConfirmDelete(false)}>Cancel</button>
+                <button
+                  type="button"
+                  className="h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent"
+                  onClick={() => {
+                    void studio.deleteTake(selected.id).then((message) => {
+                      setConfirmDelete(false);
+                      if (message) setKeepWarning(message);
+                    });
+                  }}
+                >
+                  Delete take
+                </button>
+                <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-sm" onClick={() => setConfirmDelete(false)}>
+                  Cancel
+                </button>
               </div>
             ) : (
-              <button type="button" className="mt-3 text-sm text-muted" onClick={() => setConfirmDelete(true)}>Delete take</button>
+              <button type="button" className="mt-3 text-sm text-muted" onClick={() => setConfirmDelete(true)}>
+                Delete take
+              </button>
             )}
           </div>
         </div>

@@ -621,8 +621,13 @@ export function CaptureWorkspace() {
             <button type="button" className={quietClass} disabled={!preview} onClick={retake} data-testid="retake">Retake</button>
             <button type="button" className={buttonClass} disabled={!preview || !character || saving} onClick={() => void saveTake()} data-testid="save-take">{saving ? "Saving" : "Save take"}</button>
             <button type="button" className={buttonClass} disabled={saving || (!preview && !characterTakeId)} onClick={() => void saveAndPlace()} data-testid="add-to-timeline">Add to Timeline</button>
-            <Link href="/edit" className={`${quietClass} inline-flex items-center`} onClick={() => studio.setAssetCategory("media")}>
-              Open in Edit{studio.clips.length ? ` (${studio.clips.length})` : ""}
+            <Link
+              href="/edit"
+              className={`${studio.clips.length ? buttonClass : quietClass} inline-flex items-center`}
+              data-testid="continue-edit"
+              onClick={() => studio.setAssetCategory("media")}
+            >
+              {studio.clips.length ? `Continue to Edit (${studio.clips.length})` : "Open in Edit"}
             </Link>
             {studio.clips.length > 0 ? (
               <Link href="/export" className={`${quietClass} inline-flex items-center`}>

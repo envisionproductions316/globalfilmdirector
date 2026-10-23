@@ -8,6 +8,7 @@ const STEPS = [
   { href: "/projects", label: "PROJECT", category: null },
   { href: "/director", label: "DIRECTOR", category: null },
   { href: "/characters", label: "CHARACTERS", category: "characters" as const },
+  { href: "/capture", label: "CAPTURE", category: "characters" as const },
   { href: "/storyboard", label: "SCENES", category: "scenes" as const },
   { href: "/audio", label: "AUDIO", category: "music" as const },
   { href: "/edit", label: "EDIT", category: "media" as const },
