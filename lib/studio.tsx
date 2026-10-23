@@ -412,6 +412,15 @@ function blankProject(id: string, title: string, kind: string, directorNote = ""
   };
 }
 
+/** Short project title from a free-form prompt; full text stays in directorNote. */
+export function projectTitleFromPrompt(description: string) {
+  const cleaned = description.trim().replace(/\s+/g, " ");
+  if (!cleaned) return "";
+  const firstSentence = (cleaned.split(/[.!?]/)[0] || cleaned).trim() || cleaned;
+  if (firstSentence.length <= 72) return firstSentence;
+  return `${firstSentence.slice(0, 69).trimEnd()}…`;
+}
+
 const STARTER_CHARACTERS: CharacterRecord[] = [
   { id: "max", projectId: "p1", name: "Max", color: "#324e78", look: "3D", voice: "Unassigned", wardrobe: "Street", dna: "", appearance: "", animationStyle: "Unassigned", sceneIds: [] },
   { id: "bella", projectId: "p1", name: "Bella", color: "#714b65", look: "3D", voice: "Unassigned", wardrobe: "Coat", dna: "", appearance: "", animationStyle: "Unassigned", sceneIds: [] },
@@ -887,20 +896,26 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       setStatus: (status) => updateActive({ status }),
       setAccountName: (name) => setState((current) => ({ ...current, accountName: name })),
       createProject: (description) => {
-        const title = description.trim();
-        if (!title) return "Describe a film before creating a production.";
+        const prompt = description.trim();
+        if (!prompt) return "Describe a film before creating a production.";
+        const title = projectTitleFromPrompt(prompt) || "Untitled production";
         const id = crypto.randomUUID();
         setState((current) => ({
           ...current,
-          projects: [blankProject(id, title, "Draft", title), ...current.projects],
+          projects: [blankProject(id, title, "Draft", prompt), ...current.projects],
           activeProjectId: id,
+          selectedCharacterId: "",
+          selectedTakeId: "",
+          selectedClipId: "",
+          assetCategory: "characters",
+          studioMode: "director",
           shots: [...shotsFor(id), ...current.shots],
           scenes: [...scenesFor(id), ...current.scenes],
           jobs: [...sampleJobs(id), ...current.jobs],
           mixes: [{ projectId: id, tracks: defaultMix() }, ...current.mixes],
           timelineViews: [{ projectId: id, playheadMs: 0, pixelsPerSecond: 48 }, ...current.timelineViews],
           editorOpen: false,
-          notices: withNotice(current.notices, `“${title}” is saved on this device only.`),
+          notices: withNotice(current.notices, `“${title}” is saved on this device. Add characters next.`),
         }));
         return null;
       },

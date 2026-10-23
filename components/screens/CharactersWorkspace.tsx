@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Pipeline } from "@/components/ui/Pipeline";
 import { Timeline } from "@/components/ui/Timeline";
@@ -86,13 +87,22 @@ export function CharactersWorkspace() {
                 </div>
               </dl>
             ) : null}
-            <button
-              type="button"
-              className="mt-4 h-9 w-[180px] rounded-[7px] bg-accent text-[13px] font-bold text-on-accent"
-              onClick={() => studio.recordNote(`Retake marked for ${control}. No capture was started.`)}
-            >
-              Retake selected
-            </button>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link
+                href="/capture"
+                className="inline-flex h-9 items-center rounded-[7px] bg-accent px-4 text-[13px] font-bold text-on-accent"
+                data-testid="record-performance"
+              >
+                Record performance
+              </Link>
+              <button
+                type="button"
+                className="h-9 rounded-[7px] bg-inset px-3 text-[13px]"
+                onClick={() => studio.recordNote(`Retake marked for ${control}. No capture was started.`)}
+              >
+                Mark retake note
+              </button>
+            </div>
           </article>
           <article className="rounded-[10px] bg-card px-5 py-4">
             <h2 className="m-0 text-base font-bold">Independent Performance Tracks</h2>
@@ -142,6 +152,14 @@ export function CharactersWorkspace() {
       ) : null}
       <article className="mt-5 rounded-[10px] bg-card px-5 py-4">
         <h2 className="m-0 text-base font-bold">Character Library</h2>
+        <p className="mt-2 text-sm text-muted">
+          Project: {studio.activeProject.title}. Type a name, create the character, then record on Capture.
+        </p>
+        {studio.activeProject.directorNote ? (
+          <p className="mt-2 rounded-[9px] bg-inset px-3 py-2 text-sm text-muted" data-testid="project-brief">
+            Brief: {studio.activeProject.directorNote.length > 220 ? `${studio.activeProject.directorNote.slice(0, 217)}…` : studio.activeProject.directorNote}
+          </p>
+        ) : null}
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
           {studio.characters.map((character) => {
             const selected = character.id === studio.selectedCharacterId;
@@ -163,7 +181,7 @@ export function CharactersWorkspace() {
             );
           })}
         </div>
-        {studio.characters.length === 0 ? <p className="mt-4 text-sm text-muted">No characters in {studio.activeProject.title} yet.</p> : null}
+        {studio.characters.length === 0 ? <p className="mt-4 text-sm text-muted">No characters in {studio.activeProject.title} yet. Add your first cast member below.</p> : null}
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <label>
             <span className="sr-only">Character name</span>
@@ -171,26 +189,49 @@ export function CharactersWorkspace() {
               className="h-9 rounded-md bg-inset px-3 text-sm text-ink"
               placeholder="Character name"
               value={name}
+              data-testid="character-name"
               onChange={(event) => setName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                const error = studio.addCharacter(name);
+                if (error) {
+                  setMessage(error);
+                  return;
+                }
+                setName("");
+                setMessage(`“${name.trim()}” saved. Record a performance when ready.`);
+              }}
             />
           </label>
           <button
             type="button"
             className="h-9 w-[190px] rounded-[7px] bg-accent text-[13px] font-bold text-on-accent"
+            data-testid="create-character"
             onClick={() => {
               const error = studio.addCharacter(name);
               if (error) {
                 setMessage(error);
                 return;
               }
+              const created = name.trim();
               setName("");
-              setMessage("");
+              setMessage(`“${created}” saved. Record a performance when ready.`);
             }}
           >
             Create character
           </button>
+          {studio.characters.length > 0 ? (
+            <Link
+              href="/capture"
+              className="inline-flex h-9 items-center rounded-[7px] bg-inset px-4 text-[13px] font-bold text-ink"
+              data-testid="go-capture"
+            >
+              Record on Capture
+            </Link>
+          ) : null}
         </div>
-        {message ? <p className="mt-3 text-[13px] text-muted">{message}</p> : null}
+        {message ? <p className="mt-3 text-[13px] text-muted" data-testid="character-message">{message}</p> : null}
       </article>
       <Pipeline />
     </section>

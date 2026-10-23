@@ -1,12 +1,29 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useStudio } from "@/lib/studio";
+import { projectTitleFromPrompt, useStudio } from "@/lib/studio";
 
 export function ProjectsWorkspace() {
   const studio = useStudio();
+  const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [message, setMessage] = useState("");
+
+  function createProduction() {
+    const raw = prompt;
+    const error = studio.createProject(raw);
+    if (error) {
+      setMessage(error);
+      return;
+    }
+    const title = projectTitleFromPrompt(raw) || "Untitled production";
+    setPrompt("");
+    setMessage(`“${title}” is ready. Create your cast next.`);
+    studio.setAssetCategory("characters");
+    router.push("/characters");
+  }
 
   return (
     <section>
@@ -21,27 +38,46 @@ export function ProjectsWorkspace() {
             className="min-h-16 w-full resize-y bg-transparent text-base text-ink outline-none placeholder:text-muted"
             placeholder="Describe a film, upload footage, or add a script..."
             value={prompt}
+            data-testid="project-prompt"
             onChange={(event) => setPrompt(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                event.preventDefault();
+                createProduction();
+              }
+            }}
           />
         </label>
+        <p className="mt-2 text-xs text-muted">Tip: Ctrl+Enter (or ⌘+Enter) creates the production and opens Characters.</p>
         <button
           type="button"
           className="mt-5 h-9 w-[210px] rounded-[7px] bg-accent text-[13px] font-bold text-on-accent"
-          onClick={() => {
-            const title = prompt;
-            const error = studio.createProject(title);
-            if (error) {
-              setMessage(error);
-              return;
-            }
-            setPrompt("");
-            setMessage(`“${title.trim()}” is saved on this device.`);
-          }}
+          data-testid="create-production"
+          onClick={createProduction}
         >
           Create production
         </button>
         <p className="mt-3 text-sm">Active project: {studio.activeProject.title}</p>
-        {message ? <p className="mt-2 text-[13px] text-muted">{message}</p> : null}
+        {message ? <p className="mt-2 text-[13px] text-muted" data-testid="project-message">{message}</p> : null}
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link
+            href="/characters"
+            className="inline-flex h-9 items-center rounded-[7px] bg-accent px-4 text-[13px] font-bold text-on-accent"
+            onClick={() => studio.setAssetCategory("characters")}
+          >
+            Continue to Characters
+          </Link>
+          <Link href="/director" className="inline-flex h-9 items-center rounded-[7px] bg-inset px-4 text-[13px] text-ink">
+            Open Director notes
+          </Link>
+          <Link
+            href="/capture"
+            className="inline-flex h-9 items-center rounded-[7px] bg-inset px-4 text-[13px] text-ink"
+            onClick={() => studio.setAssetCategory("characters")}
+          >
+            Go to Capture
+          </Link>
+        </div>
       </article>
       <p className="mt-auto pt-6 text-[11px] tracking-wide text-pipeline">
         PROJECT → DIRECTOR → CHARACTERS → SCENES → AUDIO → EDIT → EXPORT
