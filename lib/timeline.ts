@@ -1,14 +1,14 @@
 export const TRACK_IDS = ["video", "motion", "dialogue", "voice", "music", "sfx", "captions"] as const;
 export type TrackId = (typeof TRACK_IDS)[number];
 
-export const TRACK_META: { id: TrackId; label: string; color: string; kind: "video" | "audio" | "note" }[] = [
+export const TRACK_META: { id: TrackId; label: string; color: string; kind: "video" | "audio" | "caption" | "note" }[] = [
   { id: "video", label: "Video", color: "#3478f6", kind: "video" },
   { id: "motion", label: "Character motion", color: "#23b7a5", kind: "note" },
   { id: "dialogue", label: "Dialogue", color: "#7258b0", kind: "audio" },
   { id: "voice", label: "Lead vocal", color: "#9b7741", kind: "audio" },
   { id: "music", label: "Music", color: "#4386b1", kind: "audio" },
   { id: "sfx", label: "SFX", color: "#3478f6", kind: "audio" },
-  { id: "captions", label: "Captions", color: "#23b7a5", kind: "note" },
+  { id: "captions", label: "Captions", color: "#23b7a5", kind: "caption" },
 ];
 
 export type TimelineClip = {
@@ -27,6 +27,8 @@ export type TimelineClip = {
   volume: number;
   fadeInMs: number;
   fadeOutMs: number;
+  groupId: string;
+  text: string;
 };
 
 export type TrackMix = {
@@ -88,7 +90,7 @@ export function trackMeta(track: TrackId) {
 
 export function trackAccepts(track: TrackId, media: MediaShape) {
   const meta = trackMeta(track);
-  if (meta.kind === "note") return false;
+  if (meta.kind === "note" || meta.kind === "caption") return false;
   if (meta.kind === "video") return media.hasVideo;
   return media.hasAudio || media.hasVideo;
 }
@@ -183,27 +185,32 @@ export function resolveTrack(value: string | undefined): TrackId {
 }
 
 export function completeClip(clip: Partial<TimelineClip>, projectId: string): TimelineClip | null {
-  if (!clip.id || !clip.mediaId) return null;
+  if (!clip.id) return null;
   const track = clip.track && (TRACK_IDS.includes(clip.track) || LEGACY_TRACKS[clip.track]) ? resolveTrack(clip.track) : null;
-  if (!track || track === "motion" || track === "captions") return null;
+  if (!track || track === "motion") return null;
+  const text = clip.text || "";
+  if (track === "captions" && !text.trim()) return null;
+  if (track !== "captions" && !clip.mediaId) return null;
   const inMs = Math.max(0, finite(clip.inMs, 0));
   const outMs = Math.max(inMs + 40, finite(clip.outMs, inMs + 1000));
   return {
     id: clip.id,
     projectId: clip.projectId || projectId,
     track,
-    mediaId: clip.mediaId,
+    mediaId: clip.mediaId || `caption:${clip.id}`,
     takeId: clip.takeId || "",
     sceneId: clip.sceneId || "",
     shotId: clip.shotId || "",
     characterId: clip.characterId || "",
-    name: clip.name || "Clip",
+    name: clip.name || (text ? "Caption" : "Clip"),
     startMs: Math.max(0, finite(clip.startMs, 0)),
     inMs,
     outMs,
     volume: clamp(finite(clip.volume, 1), 0, 1),
     fadeInMs: Math.max(0, finite(clip.fadeInMs, 0)),
     fadeOutMs: Math.max(0, finite(clip.fadeOutMs, 0)),
+    groupId: clip.groupId || "",
+    text,
   };
 }
 
@@ -265,6 +272,8 @@ export function clipsForSource(
     return { clips: [], error: "This take is already on that track." };
   }
   const startMs = endOfTrack(existing, track);
+  const linked = track === "video" && source.hasAudio && !(source.takeId && existing.some((clip) => clip.takeId === source.takeId && clip.track === "dialogue"));
+  const groupId = linked ? source.newId() : "";
   const first: TimelineClip = {
     id: source.newId(),
     projectId: source.projectId,
@@ -281,12 +290,111 @@ export function clipsForSource(
     volume: 1,
     fadeInMs: 0,
     fadeOutMs: 0,
+    groupId,
+    text: "",
   };
   const created = [first];
-  if (track === "video" && source.hasAudio && !(source.takeId && existing.some((clip) => clip.takeId === source.takeId && clip.track === "dialogue"))) {
-    created.push({ ...first, id: source.newId(), track: "dialogue" });
-  }
+  if (linked) created.push({ ...first, id: source.newId(), track: "dialogue" });
   return { clips: created, error: "" };
+}
+
+export function groupMembers(clips: TimelineClip[], clip: TimelineClip) {
+  if (!clip.groupId) return [clip];
+  const members = clips.filter((item) => item.groupId === clip.groupId);
+  return members.length > 0 ? members : [clip];
+}
+
+export function moveGroup(clips: TimelineClip[], id: string, startMs: number, track: TrackId, media: MediaShape) {
+  const clip = clips.find((item) => item.id === id);
+  if (!clip) return { clips, error: "That clip is not on this timeline." };
+  const nextStart = Math.max(0, Math.round(startMs));
+  const moved = clip.track === "captions"
+    ? track === "captions" ? { ...clip, startMs: nextStart } : null
+    : moveClip(clip, nextStart, track, media);
+  if (!moved) {
+    return {
+      clips,
+      error: clip.track === "captions"
+        ? "Captions stay on the captions track."
+        : "That track cannot hold this clip. Character motion has no retargeted media.",
+    };
+  }
+  const delta = moved.startMs - clip.startMs;
+  const members = new Set(groupMembers(clips, clip).map((item) => item.id));
+  return {
+    error: "",
+    clips: clips.map((item) => {
+      if (item.id === id) return moved;
+      if (members.has(item.id)) return { ...item, startMs: Math.max(0, item.startMs + delta) };
+      return item;
+    }),
+  };
+}
+
+export function trimGroup(clips: TimelineClip[], id: string, edge: "in" | "out", sourceMs: number, mediaDurationMs: number) {
+  const clip = clips.find((item) => item.id === id);
+  if (!clip || !Number.isFinite(sourceMs)) return clips;
+  const next = trimClip(clip, edge, sourceMs, mediaDurationMs);
+  const members = new Set(groupMembers(clips, clip).map((item) => item.id));
+  const inDelta = next.inMs - clip.inMs;
+  const outDelta = next.outMs - clip.outMs;
+  const startDelta = next.startMs - clip.startMs;
+  return clips.map((item) => {
+    if (item.id === id) return next;
+    if (!members.has(item.id)) return item;
+    const inMs = Math.max(0, item.inMs + inDelta);
+    return { ...item, inMs, outMs: Math.max(inMs + 40, item.outMs + outDelta), startMs: Math.max(0, item.startMs + startDelta) };
+  });
+}
+
+export function splitGroup(clips: TimelineClip[], id: string, playheadMs: number, nextIds: string[]) {
+  const clip = clips.find((item) => item.id === id);
+  if (!clip) return null;
+  const members = groupMembers(clips, clip);
+  const rightGroup = clip.groupId ? nextIds[0] || `${clip.groupId}-b` : "";
+  let cursor = 1;
+  const replacements = new Map<string, TimelineClip[]>();
+  for (const member of members) {
+    const parts = splitClip(member, playheadMs, nextIds[cursor] || `${member.id}-b`);
+    cursor += 1;
+    if (!parts) continue;
+    replacements.set(member.id, [
+      { ...parts[0], groupId: member.groupId, text: member.text },
+      { ...parts[1], groupId: rightGroup, text: member.text },
+    ]);
+  }
+  if (!replacements.has(id)) return null;
+  return clips.flatMap((item) => replacements.get(item.id) ?? [item]);
+}
+
+export function nudgeGroup(clips: TimelineClip[], id: string, direction: -1 | 1) {
+  const clip = clips.find((item) => item.id === id);
+  if (!clip) return clips;
+  const ordered = clips.filter((item) => item.track === clip.track).sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id));
+  const index = ordered.findIndex((item) => item.id === id);
+  const neighbor = ordered[index + direction];
+  if (!neighbor) return clips;
+  const delta = neighbor.startMs - clip.startMs;
+  const from = new Set(groupMembers(clips, clip).map((item) => item.id));
+  const to = new Set(groupMembers(clips, neighbor).map((item) => item.id));
+  return clips.map((item) => {
+    if (from.has(item.id)) return { ...item, startMs: Math.max(0, item.startMs + delta) };
+    if (to.has(item.id)) return { ...item, startMs: Math.max(0, item.startMs - delta) };
+    return item;
+  });
+}
+
+export function fitGroupToPicture(clips: TimelineClip[], id: string) {
+  const picture = pictureDuration(clips);
+  const clip = clips.find((item) => item.id === id);
+  if (!clip || picture <= 0) return clips;
+  const members = new Set(groupMembers(clips, clip).map((item) => item.id));
+  return clips.map((item) => {
+    if (!members.has(item.id)) return item;
+    const overflow = clipEnd(item) - picture;
+    if (overflow <= 250) return item;
+    return { ...item, outMs: Math.max(item.inMs + 40, item.outMs - overflow) };
+  });
 }
 
 export function importAllowed(mime: string, name: string) {

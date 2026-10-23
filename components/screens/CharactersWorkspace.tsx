@@ -74,7 +74,7 @@ export function CharactersWorkspace() {
                   <dd className="m-0">{studio.selectedCharacter.animationStyle}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted">Scenes</dt>
+                  <dt className="text-xs text-muted">Assigned shots</dt>
                   <dd className="m-0">
                     {studio.selectedCharacter.sceneIds.length
                       ? studio.shots
@@ -112,9 +112,34 @@ export function CharactersWorkspace() {
 
   return (
     <section>
-      <h1 className="m-0 text-[26px] font-bold">03 · Character Library</h1>
-      <p className="mt-2 text-[15px] text-muted">Create 2D/3D characters, voices, looks, and identities</p>
+      <h1 className="m-0 text-[26px] font-bold">{studio.assetCategory === "styles" ? "Visual Styles" : "03 · Character Library"}</h1>
+      <p className="mt-2 text-[15px] text-muted">
+        {studio.assetCategory === "styles"
+          ? "Animation styles from each character passport. No AI style engine is connected."
+          : "Create 2D/3D characters, voices, looks, and identities"}
+      </p>
       <p className="mt-2 text-sm text-muted lg:hidden">Open a character to edit DNA, appearance, voice, wardrobe, scenes, and saved takes.</p>
+      {studio.assetCategory === "styles" ? (
+        <article className="mt-5 rounded-[10px] bg-card px-5 py-4">
+          <h2 className="m-0 text-base font-bold">Styles in this project</h2>
+          <ul className="mt-3 list-none space-y-2 p-0">
+            {studio.characters.map((character) => (
+              <li key={character.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[9px] bg-inset px-3 py-3 text-sm">
+                <button type="button" className="font-bold" onClick={() => studio.openCharacter(character.id)}>{character.name}</button>
+                <select
+                  className="rounded-md bg-card px-2 py-1.5 text-sm"
+                  value={character.animationStyle}
+                  onChange={(event) => studio.updateCharacter(character.id, { animationStyle: event.target.value as typeof character.animationStyle })}
+                >
+                  {["Unassigned", "Realistic", "Stylized", "Limited", "Graphic"].map((style) => (
+                    <option key={style}>{style}</option>
+                  ))}
+                </select>
+              </li>
+            ))}
+          </ul>
+        </article>
+      ) : null}
       <article className="mt-5 rounded-[10px] bg-card px-5 py-4">
         <h2 className="m-0 text-base font-bold">Character Library</h2>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">

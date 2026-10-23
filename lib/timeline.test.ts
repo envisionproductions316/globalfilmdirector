@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { continuityWarnings } from "./continuity.ts";
 import { buildExportPlan } from "./export-plan.ts";
-import { audible, completeClip, gainAt, nudgeClip, splitClip, timelineDuration, trimClip, type TimelineClip, type TrackMix } from "./timeline.ts";
+import { parseCaptions } from "./captions.ts";
+import { audible, completeClip, gainAt, nudgeClip, nudgeGroup, splitClip, timelineDuration, trimClip, trimGroup, type TimelineClip, type TrackMix } from "./timeline.ts";
 
 function clip(patch: Partial<TimelineClip> = {}): TimelineClip {
   return {
@@ -21,6 +22,8 @@ function clip(patch: Partial<TimelineClip> = {}): TimelineClip {
     volume: 1,
     fadeInMs: 0,
     fadeOutMs: 0,
+    groupId: "",
+    text: "",
     ...patch,
   };
 }
@@ -64,8 +67,12 @@ test("mute, solo, and fades change mix gain without rewriting the clip", () => {
   assert.ok(gainAt(faded, 1000, openMix) > 0.95);
 });
 
-test("migration drops caption and motion clips and keeps phase 2 fields", () => {
+test("migration drops empty caption and motion clips and keeps caption text", () => {
   assert.equal(completeClip({ id: "x", mediaId: "m", track: "captions" }, "p1"), null);
+  assert.equal(completeClip({ id: "motion", mediaId: "m", track: "motion" }, "p1"), null);
+  const caption = completeClip({ id: "cap", track: "captions", text: "Hello", startMs: 500, outMs: 1000 }, "p1");
+  assert.equal(caption?.text, "Hello");
+  assert.equal(caption?.mediaId, "caption:cap");
   const kept = completeClip({ id: "x", mediaId: "m", track: "dialogue", name: "Kept", outMs: 800 }, "p1");
   assert.equal(kept?.name, "Kept");
   assert.equal(kept?.outMs, 800);
@@ -148,4 +155,37 @@ test("export plan trims, honors mute, and refuses a timeline with no picture", (
   assert.ok(plan.args.includes("aac"));
   const refused = buildExportPlan([music], openMix, [{ mediaId: "song", path: "song.m4a", hasVideo: false, hasAudio: true }], "out.mp4");
   assert.match(refused.error, /no video clips/i);
+  assert.ok(plan.args.includes("-muxdelay"));
+});
+
+test("linked picture and dialogue trim and reorder together", () => {
+  const picture = clip({ groupId: "pair" });
+  const dialogue = clip({ id: "dialogue-a", track: "dialogue", groupId: "pair", name: "Line" });
+  const trimmed = trimGroup([picture, dialogue], "clip-a", "out", 1000, 2000);
+  assert.equal(trimmed.find((item) => item.id === "clip-a")?.outMs, 1000);
+  assert.equal(trimmed.find((item) => item.id === "dialogue-a")?.outMs, 1000);
+  const later = clip({ id: "clip-b", name: "Second", startMs: 2000, groupId: "second" });
+  const laterLine = clip({ id: "dialogue-b", track: "dialogue", name: "Second line", startMs: 2000, groupId: "second" });
+  const nudged = nudgeGroup([picture, dialogue, later, laterLine], "clip-a", 1);
+  assert.equal(nudged.find((item) => item.id === "clip-a")?.startMs, 2000);
+  assert.equal(nudged.find((item) => item.id === "dialogue-a")?.startMs, 2000);
+  assert.equal(nudged.find((item) => item.id === "clip-b")?.startMs, 0);
+  assert.equal(nudged.find((item) => item.id === "dialogue-b")?.startMs, 0);
+});
+
+test("caption import and export burn-in use the cue text", () => {
+  const cues = parseCaptions("1\n00:00:01,000 --> 00:00:02,500\nHello there\n");
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]?.startMs, 1000);
+  assert.equal(cues[0]?.text, "Hello there");
+  const plan = buildExportPlan(
+    [clip(), clip({ id: "cap", track: "captions", mediaId: "caption:cap", text: "Hello there", startMs: 1000, inMs: 0, outMs: 1500 })],
+    openMix,
+    [{ mediaId: "media-a", path: "a.mp4", hasVideo: true, hasAudio: false }],
+    "out.mp4",
+    "C:\\temp\\captions.srt",
+  );
+  const filter = plan.args[plan.args.indexOf("-filter_complex") + 1];
+  assert.match(filter, /subtitles=filename=/);
+  assert.match(plan.notes.join(" "), /burned into the picture/);
 });

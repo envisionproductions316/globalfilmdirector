@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.gitignore
+*.log
+*.tsbuildinfo
+.DS_Store
+agent-transcripts
+.cursor
+README.md
+AGENTS.md
+figma-manifest.json
+design
+scripts/phase2-browser-check.mjs
+scripts/phase3-browser-check.mjs
+scripts/phase3-ffmpeg-check.mjs

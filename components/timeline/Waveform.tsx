@@ -5,7 +5,7 @@ import { getMedia } from "@/lib/media-db";
 
 const peakCache = new Map<string, number[]>();
 
-export function Waveform({ mediaId }: { mediaId: string }) {
+export function Waveform({ mediaId, compact = false }: { mediaId: string; compact?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -59,5 +59,5 @@ export function Waveform({ mediaId }: { mediaId: string }) {
     };
   }, [mediaId]);
 
-  return <canvas ref={ref} width={192} height={32} className="mt-2 rounded bg-inset" data-testid="waveform" />;
+  return <canvas ref={ref} width={192} height={32} className={compact ? "h-full w-full" : "mt-2 rounded bg-inset"} data-testid={compact ? undefined : "waveform"} />;
 }

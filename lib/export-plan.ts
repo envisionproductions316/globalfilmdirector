@@ -23,7 +23,7 @@ function seconds(ms: number) {
  * This module does not download, install, or shell out. The API route runs the list only
  * after `ffmpeg` is found on PATH. Output is MP4 (H.264 + AAC) at 1280×720 when picture exists.
  */
-export function buildExportPlan(clips: TimelineClip[], mix: TrackMix[], media: ExportSource[], outputPath: string): ExportPlan {
+export function buildExportPlan(clips: TimelineClip[], mix: TrackMix[], media: ExportSource[], outputPath: string, subtitlePath = ""): ExportPlan {
   const sources = new Map(media.map((item) => [item.mediaId, item]));
   const notes: string[] = [];
   const durationMs = timelineDuration(clips);
@@ -87,6 +87,12 @@ export function buildExportPlan(clips: TimelineClip[], mix: TrackMix[], media: E
     filters.push(`[${base}][${label}]overlay=eof_action=pass:x=0:y=0:enable='between(t,${start},${end})'[${next}]`);
     base = next;
   });
+  if (subtitlePath) {
+    const escaped = subtitlePath.replace(/\\/g, "/").replace(/:/g, "\\:").replace(/'/g, "\\'");
+    filters.push(`[${base}]subtitles=filename='${escaped}'[capped]`);
+    base = "capped";
+    notes.push("Imported captions are burned into the picture. No caption service wrote them.");
+  }
   filters.push(`[${base}]format=yuv420p[vout]`);
 
   const audioLabels: string[] = [];
@@ -118,6 +124,6 @@ export function buildExportPlan(clips: TimelineClip[], mix: TrackMix[], media: E
   args.push("-map", "[vout]", "-map", "[aout]");
   args.push("-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "23");
   args.push("-c:a", "aac", "-b:a", "128k");
-  args.push("-movflags", "+faststart", "-t", duration, outputPath);
+  args.push("-muxdelay", "0", "-muxpreload", "0", "-movflags", "+faststart", "-t", duration, outputPath);
   return { args, durationMs, error: "", notes };
 }
