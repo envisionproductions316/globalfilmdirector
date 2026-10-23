@@ -16,6 +16,8 @@ import {
   completeClip,
   completeMix,
   defaultMix,
+  closeTrackGaps,
+  findTrackGaps,
   fitGroupToPicture,
   moveGroup,
   nudgeGroup,
@@ -23,17 +25,30 @@ import {
   splitGroup,
   trimGroup,
   type AssetRecord,
+  clampZoom,
   type TimelineClip,
+  type TimelineGap,
   type TrackId,
   type TrackMix,
 } from "@/lib/timeline";
 import type { CaptionCue } from "@/lib/captions";
+import {
+  applyDirectionLocal,
+  CHARACTER_KINDS,
+  isCharacterKind,
+  mergePlanUpdates,
+  type CharacterKind,
+  type CharacterSeed,
+  type DirectorApplyResult,
+} from "@/lib/director-apply";
 
 export type ThemeName = "night" | "day";
 export type StudioMode = "director" | "studio";
 export type AssetCategory = "media" | "characters" | "locations" | "scenes" | "music" | "sfx" | "styles" | "assets";
 export type ProductionStatus = "Draft" | "In review" | "Approved";
 export type AnimationStyle = "Unassigned" | "Realistic" | "Stylized" | "Limited" | "Graphic";
+export type { CharacterKind, CharacterSeed };
+export { CHARACTER_KINDS };
 export type CapturePrefs = {
   tab: "face" | "body" | "voice" | "style";
   motionStrength: number;
@@ -52,8 +67,9 @@ export type PlanItem = {
 
 export type DirectorMessage = {
   id: string;
-  role: "user" | "unavailable";
+  role: "user" | "assistant" | "unavailable";
   text: string;
+  source?: "local" | "llm";
 };
 
 export type ProjectRecord = {
@@ -72,6 +88,8 @@ export type CharacterRecord = {
   projectId: string;
   name: string;
   color: string;
+  kind: CharacterKind;
+  species: string;
   look: "2D" | "3D";
   voice: string;
   wardrobe: string;
@@ -144,7 +162,7 @@ export type TakeRecord = {
   hasVideo: boolean;
   cameraLabel: string;
   microphoneLabel: string;
-  tracking: "Raw recording only";
+  tracking: string;
   retarget: "Not available";
 };
 
@@ -162,6 +180,7 @@ export type TakeDraft = {
   hasVideo: boolean;
   cameraLabel: string;
   microphoneLabel: string;
+  tracking?: string;
 };
 
 export type JobRecord = {
@@ -172,13 +191,8 @@ export type JobRecord = {
   sample: boolean;
 };
 
-export type ConnectorRecord = {
-  id: string;
-  name: string;
-  detail: string;
-  kind: "Open Source" | "Local" | "Cloud";
-  permissions: string[];
-};
+import { CONNECTORS as CONNECTOR_CATALOG, type ConnectorRecord } from "@/lib/connectors-catalog";
+export type { ConnectorRecord } from "@/lib/connectors-catalog";
 
 type StudioState = {
   schemaVersion: 3;
@@ -251,18 +265,7 @@ const SHOT_TEMPLATES: Omit<ShotRecord, "id" | "projectId" | "sceneId">[] = [
   { label: "Shot 6", action: "Camera / action", color: "#3a6672", camera: "Static", movement: "Static", location: "Exterior" },
 ];
 
-export const CONNECTORS: ConnectorRecord[] = [
-  { id: "blender", name: "Blender", detail: "3D animation • Local", kind: "Local", permissions: ["Read scene files", "Write local cache"] },
-  { id: "comfyui", name: "ComfyUI", detail: "AI image/video workflows", kind: "Open Source", permissions: ["Read prompts", "Write local renders"] },
-  { id: "ffmpeg", name: "FFmpeg", detail: "Video processing • Local", kind: "Local", permissions: ["Read media", "Write exports"] },
-  { id: "kdenlive", name: "Kdenlive", detail: "Timeline editing", kind: "Open Source", permissions: ["Read timeline", "Write project file"] },
-  { id: "opentoonz", name: "OpenToonz", detail: "2D animation", kind: "Open Source", permissions: ["Read drawings", "Write frames"] },
-  { id: "rhubarb", name: "Rhubarb Lip Sync", detail: "Lip synchronization", kind: "Open Source", permissions: ["Read dialogue audio"] },
-  { id: "whisper", name: "Whisper", detail: "Speech recognition", kind: "Open Source", permissions: ["Read dialogue audio"] },
-  { id: "gcie", name: "GCIE", detail: "Voice & translation", kind: "Cloud", permissions: ["Read script", "Write captions"] },
-  { id: "apg", name: "APG", detail: "AI provider routing", kind: "Cloud", permissions: ["Read prompts", "Route providers"] },
-  { id: "envision", name: "Envision Cloud", detail: "Jobs & storage", kind: "Cloud", permissions: ["Read jobs", "Write storage"] },
-];
+export const CONNECTORS: ConnectorRecord[] = CONNECTOR_CATALOG;
 
 export const DESTINATIONS = [
   { href: "/projects", label: "Projects", icon: "P" },
@@ -385,7 +388,7 @@ function completeTake(take: Partial<TakeRecord>, projectId: string): TakeRecord 
     hasVideo: take.hasVideo !== false,
     cameraLabel: take.cameraLabel || "Camera",
     microphoneLabel: take.microphoneLabel || "No microphone",
-    tracking: "Raw recording only",
+    tracking: typeof take.tracking === "string" && take.tracking ? take.tracking : "Raw recording only",
     retarget: "Not available",
   };
 }
@@ -413,11 +416,11 @@ export function projectTitleFromPrompt(description: string) {
 }
 
 const STARTER_CHARACTERS: CharacterRecord[] = [
-  { id: "max", projectId: "p1", name: "Max", color: "#324e78", look: "3D", voice: "Unassigned", wardrobe: "Street", dna: "", appearance: "", animationStyle: "Unassigned", sceneIds: [] },
-  { id: "bella", projectId: "p1", name: "Bella", color: "#714b65", look: "3D", voice: "Unassigned", wardrobe: "Coat", dna: "", appearance: "", animationStyle: "Unassigned", sceneIds: [] },
-  { id: "rocky", projectId: "p1", name: "Rocky", color: "#3a6c73", look: "2D", voice: "Unassigned", wardrobe: "Work", dna: "", appearance: "", animationStyle: "Unassigned", sceneIds: [] },
-  { id: "luna", projectId: "p1", name: "Luna", color: "#685b8b", look: "3D", voice: "Unassigned", wardrobe: "Night", dna: "", appearance: "", animationStyle: "Unassigned", sceneIds: [] },
-  { id: "sam", projectId: "p1", name: "Sam", color: "#75624b", look: "2D", voice: "Unassigned", wardrobe: "Casual", dna: "", appearance: "", animationStyle: "Unassigned", sceneIds: [] },
+  { id: "max", projectId: "p1", name: "Max", color: "#324e78", kind: "human", species: "", look: "3D", voice: "Unassigned", wardrobe: "Street", dna: "", appearance: "", animationStyle: "Unassigned", sceneIds: [] },
+  { id: "bella", projectId: "p1", name: "Bella", color: "#714b65", kind: "human", species: "", look: "3D", voice: "Unassigned", wardrobe: "Coat", dna: "", appearance: "", animationStyle: "Unassigned", sceneIds: [] },
+  { id: "rocky", projectId: "p1", name: "Rocky", color: "#3a6c73", kind: "human", species: "", look: "2D", voice: "Unassigned", wardrobe: "Work", dna: "", appearance: "", animationStyle: "Unassigned", sceneIds: [] },
+  { id: "luna", projectId: "p1", name: "Luna", color: "#685b8b", kind: "human", species: "", look: "3D", voice: "Unassigned", wardrobe: "Night", dna: "", appearance: "", animationStyle: "Unassigned", sceneIds: [] },
+  { id: "sam", projectId: "p1", name: "Sam", color: "#75624b", kind: "human", species: "", look: "2D", voice: "Unassigned", wardrobe: "Casual", dna: "", appearance: "", animationStyle: "Unassigned", sceneIds: [] },
 ];
 
 const INITIAL: StudioState = {
@@ -447,7 +450,7 @@ const INITIAL: StudioState = {
   selectedClipId: "",
   selectedAudioTrack: "dialogue",
   jobs: [],
-  selectedConnectorId: "blender",
+  selectedConnectorId: "ffmpeg",
   connectorFilter: "All",
 };
 
@@ -465,6 +468,8 @@ function completeCharacter(character: Partial<CharacterRecord>, projectId: strin
     projectId: character.projectId || projectId,
     name: character.name || "Unnamed",
     color: character.color || "#405d84",
+    kind: isCharacterKind(character.kind) ? character.kind : "human",
+    species: typeof character.species === "string" ? character.species : "",
     look: character.look === "2D" ? "2D" : "3D",
     voice: character.voice || "Unassigned",
     wardrobe: character.wardrobe || "Unset",
@@ -490,7 +495,16 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
       status: isStatus(project.status) ? project.status : active && isStatus(stored.status) ? stored.status : "Draft",
       planApproved: typeof project.planApproved === "boolean" ? project.planApproved : active ? Boolean(stored.planApproved) : false,
       directorNote: typeof project.directorNote === "string" ? project.directorNote : active ? stored.directorNote || "" : "",
-      messages: Array.isArray(project.messages) ? project.messages.filter((message) => message.role === "user" || message.role === "unavailable") : [],
+      messages: Array.isArray(project.messages)
+        ? project.messages
+            .filter((message) => message && (message.role === "user" || message.role === "unavailable" || message.role === "assistant") && typeof message.text === "string")
+            .map((message) => ({
+              id: message.id || crypto.randomUUID(),
+              role: message.role as DirectorMessage["role"],
+              text: message.text,
+              source: message.source === "llm" || message.source === "local" ? message.source : undefined,
+            }))
+        : [],
       plan: Array.isArray(project.plan) && project.plan.length > 0 ? project.plan : defaultPlan(),
     };
   });
@@ -559,17 +573,20 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
   });
   const timelineViews = projects.map((project) => {
     const found = Array.isArray(stored.timelineViews) ? stored.timelineViews.find((view) => view.projectId === project.id) : undefined;
-    const pixels = typeof found?.pixelsPerSecond === "number" ? Math.min(160, Math.max(24, found.pixelsPerSecond)) : 48;
+    const pixels = typeof found?.pixelsPerSecond === "number" ? clampZoom(found.pixelsPerSecond) : 48;
     const playhead = typeof found?.playheadMs === "number" && found.playheadMs >= 0 ? found.playheadMs : 0;
     return { projectId: project.id, playheadMs: playhead, pixelsPerSecond: pixels };
   });
 
   const storedJobs = Array.isArray(stored.jobs) ? stored.jobs : [];
-  const jobs = storedJobs.map((job) => ({
-    ...job,
-    projectId: job.projectId && projectIds.has(job.projectId) ? job.projectId : activeProjectId,
-    sample: typeof job.sample === "boolean" ? job.sample : job.state !== "Recorded locally",
-  }));
+  // Drop legacy demo/sample queue rows — only real encode results remain.
+  const jobs = storedJobs
+    .filter((job) => job && job.sample !== true)
+    .map((job) => ({
+      ...job,
+      projectId: job.projectId && projectIds.has(job.projectId) ? job.projectId : activeProjectId,
+      sample: false,
+    }));
   const theme = stored.theme === "day" || stored.theme === "night" ? stored.theme : base.theme;
   const studioMode = stored.studioMode === "studio" ? "studio" : "director";
   const assetCategory = ASSET_CATEGORIES.some((item) => item.id === stored.assetCategory) ? (stored.assetCategory as AssetCategory) : base.assetCategory;
@@ -612,7 +629,7 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
     selectedClipId: clips.some((clip) => clip.id === stored.selectedClipId) ? stored.selectedClipId || "" : "",
     selectedAudioTrack: resolveTrack(stored.selectedAudioTrack),
     jobs,
-    selectedConnectorId: CONNECTORS.some((connector) => connector.id === stored.selectedConnectorId) ? stored.selectedConnectorId || "blender" : "blender",
+    selectedConnectorId: CONNECTORS.some((connector) => connector.id === stored.selectedConnectorId) ? stored.selectedConnectorId || "ffmpeg" : "ffmpeg",
     connectorFilter: stored.connectorFilter || "All",
   };
 }
@@ -649,6 +666,8 @@ type StudioContextValue = {
   pixelsPerSecond: number;
   selectedClipId: string;
   selectedClip: TimelineClip | undefined;
+  /** Picture-track holes (and empty leading space) above the minimum gap threshold. */
+  timelineGaps: TimelineGap[];
   storageBytes: number;
   mediaReady: boolean;
   warnings: ReturnType<typeof continuityWarnings>;
@@ -671,12 +690,13 @@ type StudioContextValue = {
   setActiveProjectId: (id: string) => void;
   setStatus: (status: ProductionStatus) => void;
   setAccountName: (name: string) => void;
-  createProject: (description: string) => string | null;
+  createProject: (description: string, kind?: string) => string | null;
   updateProject: (id: string, patch: Partial<Pick<ProjectRecord, "title" | "kind">>) => void;
   deleteProject: (id: string) => void;
   saveLocal: () => void;
   setDirectorNote: (note: string) => void;
   saveDirection: () => string | null;
+  applyDirection: (prompt: string) => Promise<{ error: string | null; result?: DirectorApplyResult }>;
   updatePlan: (itemId: string, detail: string) => void;
   recordNote: (text: string) => void;
   approvePlan: () => void;
@@ -685,7 +705,8 @@ type StudioContextValue = {
   closeEditor: () => void;
   updateCharacter: (id: string, patch: Partial<CharacterRecord>) => void;
   setSceneAssignment: (characterId: string, shotId: string, assigned: boolean) => void;
-  addCharacter: (name: string) => string | null;
+  addCharacter: (name: string, options?: { kind?: CharacterKind; species?: string; appearance?: string; dna?: string }) => string | null;
+  seedCharacters: (seeds: CharacterSeed[]) => number;
   deleteCharacter: (id: string) => void;
   selectShot: (id: string) => void;
   addShot: () => void;
@@ -707,6 +728,7 @@ type StudioContextValue = {
   deleteTake: (id: string, force?: boolean) => Promise<string | null>;
   deleteAsset: (id: string, force?: boolean) => Promise<string | null>;
   placeTake: (takeId: string) => string | null;
+  placeAsset: (assetId: string, track?: TrackId) => string | null;
   placeScene: (sceneId: string) => string | null;
   placeShot: (shotId: string) => string | null;
   saveImportedMedia: (draft: {
@@ -718,6 +740,8 @@ type StudioContextValue = {
     hasAudio: boolean;
     kind: "import" | "narration";
     track: TrackId;
+    /** When false, store in My Assets without placing on the timeline. Default true. */
+    place?: boolean;
   }) => Promise<string | null>;
   selectClip: (id: string) => void;
   updateClip: (id: string, patch: Partial<Pick<TimelineClip, "name" | "volume" | "fadeInMs" | "fadeOutMs" | "sceneId" | "shotId" | "characterId">>) => void;
@@ -727,6 +751,8 @@ type StudioContextValue = {
   nudgeTimelineClip: (id: string, direction: -1 | 1) => void;
   unlinkClip: (id: string) => void;
   fitClipToPicture: (id: string) => void;
+  /** Pack clips on a track left to remove holes. Defaults to video. Linked A/V groups move together. */
+  closeTimelineGaps: (track?: TrackId) => number;
   importCaptions: (name: string, cues: CaptionCue[]) => string | null;
   removeSceneClips: (sceneId: string) => void;
   deleteClip: (id: string) => void;
@@ -860,6 +886,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       pixelsPerSecond: timelineView.pixelsPerSecond,
       selectedClipId: selectedClip?.id ?? "",
       selectedClip,
+      timelineGaps: findTrackGaps(clips, "video"),
       storageBytes,
       mediaReady,
       warnings,
@@ -904,16 +931,17 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         }),
       setStatus: (status) => updateActive({ status }),
       setAccountName: (name) => setState((current) => ({ ...current, accountName: name })),
-      createProject: (description) => {
+      createProject: (description, kind = "Draft") => {
         const prompt = description.trim();
         if (!prompt) return "Describe a film before creating a production.";
         const title = projectTitleFromPrompt(prompt) || "Untitled production";
+        const projectKind = kind.trim() || "Draft";
         const id = crypto.randomUUID();
         const nextScenes = scenesFor(id);
         const nextShots = shotsFor(id);
         setState((current) => ({
           ...current,
-          projects: [blankProject(id, title, "Draft", prompt), ...current.projects],
+          projects: [blankProject(id, title, projectKind, prompt), ...current.projects],
           activeProjectId: id,
           selectedCharacterId: "",
           selectedTakeId: "",
@@ -929,7 +957,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           mixes: [{ projectId: id, tracks: defaultMix() }, ...current.mixes],
           timelineViews: [{ projectId: id, playheadMs: 0, pixelsPerSecond: 48 }, ...current.timelineViews],
           editorOpen: false,
-          notices: withNotice(current.notices, `“${title}” is saved on this device. Add characters next.`),
+          notices: withNotice(current.notices, `“${title}” is saved on this device. Shape it in Director next.`),
         }));
         return null;
       },
@@ -984,28 +1012,106 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       setDirectorNote: (note) => updateActive({ directorNote: note }),
       saveDirection: () => {
         const text = activeProject.directorNote.trim();
-        if (!text) return "Write a direction before review.";
+        if (!text) return "Write a direction before saving a draft.";
         setState((current) => ({
           ...current,
           projects: current.projects.map((project) =>
-            project.id === current.activeProjectId
-              ? {
-                  ...project,
-                  messages: [
-                    ...project.messages,
-                    { id: crypto.randomUUID(), role: "user", text },
-                    {
-                      id: crypto.randomUUID(),
-                      role: "unavailable",
-                      text: "APG is not connected. This direction is saved on this device. No production plan was generated.",
-                    },
-                  ],
-                }
-              : project,
+            project.id === current.activeProjectId ? { ...project, directorNote: text } : project,
           ),
-          notices: withNotice(current.notices, "Direction saved on this device. APG is not connected."),
+          notices: withNotice(current.notices, "Direction draft saved on this device. Send it to apply plan and cast."),
         }));
         return null;
+      },
+      applyDirection: async (prompt) => {
+        const text = prompt.trim();
+        if (!text) return { error: "Write a direction before sending." };
+
+        const planSnapshot = activeProject.plan;
+        const projectId = state.activeProjectId;
+        const existingNames = state.characters.filter((character) => character.projectId === projectId).map((character) => character.name);
+
+        let result: DirectorApplyResult = applyDirectionLocal(text, planSnapshot);
+        try {
+          const response = await fetch("/api/director", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: text,
+              plan: planSnapshot,
+              existingNames,
+            }),
+          });
+          if (response.ok) {
+            const body = (await response.json()) as DirectorApplyResult & { error?: string };
+            if (body.reply && (body.source === "local" || body.source === "llm")) {
+              result = {
+                reply: body.reply,
+                source: body.source,
+                planUpdates: Array.isArray(body.planUpdates) ? body.planUpdates : result.planUpdates,
+                characterSeeds: Array.isArray(body.characterSeeds) ? body.characterSeeds : result.characterSeeds,
+              };
+            }
+          }
+        } catch {
+          // Keep local result.
+        }
+
+        setState((current) => {
+          const project = current.projects.find((entry) => entry.id === current.activeProjectId);
+          if (!project) return current;
+          const nextPlan = mergePlanUpdates(project.plan, result.planUpdates);
+          const existing = new Set(
+            current.characters.filter((character) => character.projectId === current.activeProjectId).map((character) => character.name.toLowerCase()),
+          );
+          const seeded: CharacterRecord[] = [];
+          for (const seed of result.characterSeeds) {
+            const name = seed.name.trim();
+            if (!name || existing.has(name.toLowerCase())) continue;
+            existing.add(name.toLowerCase());
+            seeded.push(
+              completeCharacter(
+                {
+                  id: crypto.randomUUID(),
+                  projectId: current.activeProjectId,
+                  name,
+                  kind: seed.kind,
+                  species: seed.species,
+                  appearance: seed.appearance || "",
+                  color: CHARACTER_COLORS[(current.characters.length + seeded.length) % CHARACTER_COLORS.length],
+                },
+                current.activeProjectId,
+              ),
+            );
+          }
+          return {
+            ...current,
+            characters: [...current.characters, ...seeded],
+            selectedCharacterId: seeded[0]?.id || current.selectedCharacterId,
+            projects: current.projects.map((entry) =>
+              entry.id === current.activeProjectId
+                ? {
+                    ...entry,
+                    directorNote: text,
+                    planApproved: false,
+                    status: entry.status === "Approved" ? "In review" : entry.status,
+                    plan: nextPlan,
+                    messages: [
+                      ...entry.messages,
+                      { id: crypto.randomUUID(), role: "user", text },
+                      { id: crypto.randomUUID(), role: "assistant", text: result.reply, source: result.source },
+                    ],
+                  }
+                : entry,
+            ),
+            notices: withNotice(
+              current.notices,
+              result.source === "llm"
+                ? "Direction applied with LLM. Review the plan and cast."
+                : "Direction applied locally. Review the plan and cast.",
+            ),
+          };
+        });
+        return { error: null, result };
       },
       updatePlan: (itemId, detail) =>
         setState((current) => ({
@@ -1067,7 +1173,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             return { ...character, sceneIds };
           }),
         })),
-      addCharacter: (name) => {
+      addCharacter: (name, options) => {
         const trimmed = name.trim();
         if (!trimmed) return "Enter a character name.";
         const id = crypto.randomUUID();
@@ -1080,6 +1186,10 @@ export function StudioProvider({ children }: { children: ReactNode }) {
                 id,
                 projectId: current.activeProjectId,
                 name: trimmed,
+                kind: options?.kind,
+                species: options?.species,
+                appearance: options?.appearance,
+                dna: options?.dna,
                 color: CHARACTER_COLORS[current.characters.length % CHARACTER_COLORS.length],
               },
               current.activeProjectId,
@@ -1090,6 +1200,43 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           notices: withNotice(current.notices, `“${trimmed}” is saved in this project on this device.`),
         }));
         return null;
+      },
+      seedCharacters: (seeds) => {
+        let added = 0;
+        setState((current) => {
+          const existing = new Set(
+            current.characters.filter((character) => character.projectId === current.activeProjectId).map((character) => character.name.toLowerCase()),
+          );
+          const next: CharacterRecord[] = [];
+          for (const seed of seeds) {
+            const name = seed.name.trim();
+            if (!name || existing.has(name.toLowerCase())) continue;
+            existing.add(name.toLowerCase());
+            next.push(
+              completeCharacter(
+                {
+                  id: crypto.randomUUID(),
+                  projectId: current.activeProjectId,
+                  name,
+                  kind: seed.kind,
+                  species: seed.species,
+                  appearance: seed.appearance || "",
+                  color: CHARACTER_COLORS[(current.characters.length + next.length) % CHARACTER_COLORS.length],
+                },
+                current.activeProjectId,
+              ),
+            );
+          }
+          added = next.length;
+          if (!next.length) return current;
+          return {
+            ...current,
+            characters: [...current.characters, ...next],
+            selectedCharacterId: next[0]?.id || current.selectedCharacterId,
+            notices: withNotice(current.notices, `Added ${next.length} being${next.length === 1 ? "" : "s"} from direction.`),
+          };
+        });
+        return added;
       },
       deleteCharacter: (id) =>
         setState((current) => {
@@ -1302,7 +1449,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
                 hasVideo: draft.hasVideo,
                 cameraLabel: draft.cameraLabel,
                 microphoneLabel: draft.microphoneLabel,
-                tracking: "Raw recording only",
+                tracking: draft.tracking?.trim() || "Raw recording only",
                 retarget: "Not available",
               },
               ...current.takes,
@@ -1400,6 +1547,49 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         });
         return error;
       },
+      placeAsset: (assetId, track) => {
+        const known = state.assets.find((item) => item.id === assetId && item.projectId === activeProject.id);
+        if (!known) return "That file is not in My Assets for this project.";
+        let error: string | null = null;
+        setState((current) => {
+          const asset = current.assets.find((item) => item.id === assetId) ?? known;
+          if (asset.projectId !== current.activeProjectId) {
+            error = "That file belongs to another project.";
+            return current;
+          }
+          const preferred =
+            track ||
+            (asset.hasVideo
+              ? "video"
+              : current.selectedAudioTrack === "sfx" || current.selectedAudioTrack === "dialogue" || current.selectedAudioTrack === "voice" || current.selectedAudioTrack === "music"
+                ? (current.selectedAudioTrack as TrackId)
+                : "music");
+          const mine = current.clips.filter((clip) => clip.projectId === current.activeProjectId);
+          const placed = clipsForSource(mine, {
+            projectId: current.activeProjectId,
+            mediaId: asset.id,
+            takeId: "",
+            sceneId: current.selectedSceneId,
+            shotId: current.selectedShotId,
+            characterId: "",
+            name: asset.name,
+            durationMs: Math.max(40, asset.durationMs),
+            hasVideo: asset.hasVideo,
+            hasAudio: asset.hasAudio,
+            track: preferred,
+            newId: () => crypto.randomUUID(),
+          });
+          error = placed.error || null;
+          if (placed.clips.length === 0) return current;
+          return {
+            ...current,
+            clips: [...current.clips, ...placed.clips],
+            selectedClipId: placed.clips[0].id,
+            notices: withNotice(current.notices, `${asset.name} was placed on the timeline from My Assets.`),
+          };
+        });
+        return error;
+      },
       placeScene: (sceneId) => {
         const matches = state.takes.filter((take) => take.projectId === activeProject.id && take.sceneId === sceneId);
         if (matches.length === 0) return "This scene has no recording to place.";
@@ -1467,6 +1657,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         if (draft.durationMs < 40) return "This file has no readable duration.";
         const id = crypto.randomUUID();
         const createdAt = new Date().toISOString();
+        const shouldPlace = draft.place !== false;
         try {
           await putMedia({
             id,
@@ -1494,6 +1685,14 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             kind: draft.kind,
             createdAt,
           };
+          if (!shouldPlace) {
+            return {
+              ...current,
+              assets: [asset, ...current.assets],
+              assetCategory: "assets",
+              notices: withNotice(current.notices, `${asset.name} is stored in My Assets on this device.`),
+            };
+          }
           const mine = current.clips.filter((clip) => clip.projectId === current.activeProjectId);
           const placed = clipsForSource(mine, {
             projectId: current.activeProjectId,
@@ -1583,6 +1782,32 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           clips: fitGroupToPicture(current.clips, id),
           notices: withNotice(current.notices, "The clip was trimmed to the picture. The source file was kept."),
         })),
+      closeTimelineGaps: (track = "video") => {
+        let closed = 0;
+        setState((current) => {
+          const before = findTrackGaps(current.clips, track).length;
+          if (before === 0) {
+            closed = 0;
+            return {
+              ...current,
+              notices: withNotice(current.notices, `No gaps to close on the ${track} track.`),
+            };
+          }
+          const next = closeTrackGaps(current.clips, track);
+          closed = before;
+          return {
+            ...current,
+            clips: next,
+            notices: withNotice(
+              current.notices,
+              before === 1
+                ? `Closed 1 gap on ${track}. Linked clips moved with it. Sources were not rewritten.`
+                : `Closed ${before} gaps on ${track}. Linked clips moved with them. Sources were not rewritten.`,
+            ),
+          };
+        });
+        return closed;
+      },
       importCaptions: (name, cues) => {
         if (cues.length === 0) return "That file has no readable captions.";
         setState((current) => ({
@@ -1646,7 +1871,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         setState((current) => ({
           ...current,
           timelineViews: current.timelineViews.map((view) =>
-            view.projectId === current.activeProjectId ? { ...view, pixelsPerSecond: Math.min(160, Math.max(24, pixels)) } : view,
+            view.projectId === current.activeProjectId ? { ...view, pixelsPerSecond: clampZoom(pixels) } : view,
           ),
         })),
       updateShot: (id, patch) =>

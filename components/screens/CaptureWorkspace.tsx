@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PerformanceEditor } from "@/components/characters/PerformanceEditor";
 import { Waveform } from "@/components/timeline/Waveform";
+import { silhouettePath } from "@/lib/pose-tracker";
 import { trackingStatus } from "@/lib/tracking";
 import { useStudio } from "@/lib/studio";
 import { formatTimecode } from "@/lib/timeline";
@@ -18,7 +19,7 @@ const STEPS = [
   { id: 1, title: "Connect Camera", detail: "Use your phone or webcam" },
   { id: 2, title: "Choose a Character", detail: "Select who you want to be" },
   { id: 3, title: "Perform", detail: "Move, speak, and act" },
-  { id: 4, title: "Refine & Edit", detail: "Adjust, retake, or enhance" },
+  { id: 4, title: "Refine & Edit", detail: "Preview, retake, or place on timeline" },
   { id: 5, title: "Add to Scene", detail: "Place in timeline and continue" },
 ] as const;
 
@@ -62,6 +63,14 @@ export function CaptureWorkspace() {
   const [shotId, setShotId] = useState(studio.selectedShotId);
   const [saving, setSaving] = useState(false);
   const [showPoseGuide, setShowPoseGuide] = useState(false);
+  const [phoneSession, setPhoneSession] = useState<{ code: string; url: string; characterId: string } | null>(null);
+  const [phoneBusy, setPhoneBusy] = useState(false);
+  const [liveSync, setLiveSync] = useState(false);
+  const [poseReady, setPoseReady] = useState(false);
+  const [landmarks, setLandmarks] = useState<Array<{ x: number; y: number }> | null>(null);
+  const overlayRef = useRef<HTMLCanvasElement>(null);
+  const importedPhoneTakes = useRef<Set<string>>(new Set());
+  const poseActiveRef = useRef(false);
   const tracking = trackingStatus();
   const character = studio.selectedCharacter;
   const prefs = studio.capturePrefs;
@@ -77,6 +86,121 @@ export function CaptureWorkspace() {
   useEffect(() => {
     setShotId(studio.selectedShotId);
   }, [studio.selectedShotId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void import("@/lib/pose-tracker").then(async (mod) => {
+      const status = await mod.ensurePoseTracker();
+      if (!cancelled) setPoseReady(status.ready);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!poseReady || (phase !== "live" && phase !== "recording")) {
+      setLandmarks(null);
+      return;
+    }
+    let frame = 0;
+    let cancelled = false;
+    const tick = (now: number) => {
+      if (cancelled) return;
+      const video = videoRef.current;
+      const canvas = overlayRef.current;
+      if (video && canvas) {
+        void import("@/lib/pose-tracker").then((mod) => {
+          const points = mod.detectPose(video, now);
+          setLandmarks(points);
+          mod.drawPoseOverlay(canvas, video, points, "#7dd3fc");
+        });
+      }
+      frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
+  }, [poseReady, phase]);
+
+  useEffect(() => {
+    poseActiveRef.current = poseReady && (phase === "live" || phase === "recording");
+  }, [poseReady, phase]);
+
+  useEffect(() => {
+    if (!phoneSession) return;
+    const timer = window.setInterval(() => {
+      void (async () => {
+        try {
+          const response = await fetch(`/api/capture/session?code=${encodeURIComponent(phoneSession.code)}`);
+          if (!response.ok) return;
+          const body = (await response.json()) as {
+            session?: { characterId?: string; characterName?: string; sceneId?: string; shotId?: string };
+            pending?: {
+              id: string;
+              mime: string;
+              durationMs: number;
+              hasAudio: boolean;
+              hasVideo: boolean;
+              name: string;
+              dialogue: string;
+              notes: string;
+            } | null;
+          };
+          if (!body.pending) return;
+          const pending = body.pending;
+          if (importedPhoneTakes.current.has(pending.id)) return;
+          const targetCharacterId = body.session?.characterId || phoneSession.characterId;
+          const target = studio.characters.find((item) => item.id === targetCharacterId);
+          if (!target) {
+            setMessage("Phone take waiting, but the session character is missing from this project.");
+            return;
+          }
+          if (character && character.id !== target.id) {
+            studio.selectCharacter(target.id);
+          }
+          importedPhoneTakes.current.add(pending.id);
+          const mediaResponse = await fetch(
+            `/api/capture/session?code=${encodeURIComponent(phoneSession.code)}&takeId=${encodeURIComponent(pending.id)}&download=1`,
+          );
+          if (!mediaResponse.ok) {
+            importedPhoneTakes.current.delete(pending.id);
+            return;
+          }
+          const blob = await mediaResponse.blob();
+          const result = await studio.saveTake({
+            characterId: target.id,
+            sceneId: body.session?.sceneId || sceneId,
+            shotId: body.session?.shotId || shotId,
+            name: pending.name,
+            notes: pending.notes,
+            dialogue: pending.dialogue,
+            durationMs: pending.durationMs,
+            blob,
+            mime: pending.mime || blob.type || "video/webm",
+            hasAudio: pending.hasAudio,
+            hasVideo: pending.hasVideo !== false,
+            cameraLabel: "Phone capture session",
+            microphoneLabel: pending.hasAudio ? "Phone microphone" : "No microphone",
+          });
+          if (result.error) {
+            importedPhoneTakes.current.delete(pending.id);
+            setMessage(result.error);
+            return;
+          }
+          await fetch(
+            `/api/capture/session?code=${encodeURIComponent(phoneSession.code)}&takeId=${encodeURIComponent(pending.id)}&ack=1`,
+          );
+          setMessage(`Phone take saved for ${target.name}. Raw recording only — not a live wireless viewfinder.`);
+        } catch {
+          // Keep polling.
+        }
+      })();
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, [phoneSession, character, sceneId, shotId, studio]);
 
   const activeStep = !character ? 2 : phase === "idle" ? 1 : phase === "live" || phase === "recording" ? 3 : phase === "preview" ? 4 : 5;
 
@@ -283,9 +407,10 @@ export function CaptureWorkspace() {
       hasVideo: true,
       cameraLabel: cameras.find((device) => device.deviceId === cameraId)?.label || (facing === "environment" ? "Rear camera" : "Front camera"),
       microphoneLabel: micOn ? mics.find((device) => device.deviceId === micId)?.label || "Microphone" : "No microphone",
+      tracking: poseActiveRef.current ? "Pose overlay preview during capture (not retargeted)" : "Raw recording only",
     });
     setSaving(false);
-    setMessage(result.error || `Saved for ${character.name}. Raw recording only. Tracking and retargeting were not applied.`);
+    setMessage(result.error || `Saved for ${character.name}. Raw video kept. Motion retargeting was not applied.`);
     if (!result.error) {
       setTakeName("");
       setPreview((current) => {
@@ -324,6 +449,7 @@ export function CaptureWorkspace() {
       hasVideo: true,
       cameraLabel: cameras.find((device) => device.deviceId === cameraId)?.label || (facing === "environment" ? "Rear camera" : "Front camera"),
       microphoneLabel: micOn ? mics.find((device) => device.deviceId === micId)?.label || "Microphone" : "No microphone",
+      tracking: poseActiveRef.current ? "Pose overlay preview during capture (not retargeted)" : "Raw recording only",
     });
     setSaving(false);
     if (result.error) {
@@ -382,6 +508,7 @@ export function CaptureWorkspace() {
           </div>
           <div className="relative mt-3 grid min-h-[220px] place-items-center overflow-hidden rounded-[9px] bg-[#30455f]">
             <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" autoPlay playsInline muted={phase !== "preview"} data-testid="capture-video" />
+            <canvas ref={overlayRef} className="pointer-events-none absolute inset-0 h-full w-full" data-testid="pose-overlay" />
             {showPoseGuide ? (
               <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-50" viewBox="0 0 100 100" aria-hidden>
                 <circle cx="50" cy="22" r="6" fill="none" stroke="#7dffb0" strokeWidth="1.5" />
@@ -443,21 +570,82 @@ export function CaptureWorkspace() {
               <button type="button" className={quietClass} disabled={phase === "recording"} onClick={() => void enableMicrophone()}>Mic on</button>
             )}
             <button type="button" className={quietClass} onClick={() => setShowPoseGuide((open) => !open)}>{showPoseGuide ? "Hide pose guide" : "Show pose guide"}</button>
-            <button type="button" className={quietClass} disabled title="Calibration needs MediaPipe, which is not installed">Calibrate</button>
+            <button
+              type="button"
+              className={quietClass}
+              disabled={!poseReady || phase === "idle"}
+              title={poseReady ? "Pose landmarks are active on the overlay" : "Waiting for MediaPipe pose model"}
+              onClick={() => setMessage(poseReady ? "Pose overlay calibrated for this camera frame." : "Pose model is still loading.")}
+            >
+              Calibrate
+            </button>
             {phase === "recording" ? (
               <button type="button" className={buttonClass} onClick={stopRecording} data-testid="stop-record">Stop</button>
             ) : (
               <button type="button" className={buttonClass} disabled={phase === "idle" || phase === "preview"} onClick={beginRecording} data-testid="record-take">Record</button>
             )}
           </div>
-          <aside className="mt-4 rounded-[9px] bg-inset px-3 py-3">
-            <h3 className="m-0 text-sm font-bold">Phone as wireless camera</h3>
-            <p className="mt-2 text-xs text-muted">Not connected. Wi‑Fi and USB remote capture are not available in this build. Use the browser camera on this device.</p>
+          <aside className="mt-4 rounded-[9px] bg-inset px-3 py-3" data-testid="phone-session-panel">
+            <h3 className="m-0 text-sm font-bold">Phone action portraying</h3>
+            <p className="mt-2 text-xs text-muted">
+              Same Wi‑Fi: phone records the action and sends the take here. Not a live wireless viewfinder.
+            </p>
+            {phoneSession ? (
+              <div className="mt-3 space-y-2">
+                <p className="m-0 text-sm font-bold">Code {phoneSession.code}</p>
+                <img
+                  alt={`QR for ${phoneSession.url}`}
+                  className="h-[160px] w-[160px] rounded-md bg-white p-1"
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(phoneSession.url)}`}
+                />
+                <p className="m-0 break-all text-xs text-muted">{phoneSession.url}</p>
+                <button type="button" className={quietClass} onClick={() => setPhoneSession(null)}>
+                  End phone session
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={`${quietClass} mt-3`}
+                data-testid="start-phone-session"
+                disabled={phoneBusy || !character}
+                onClick={() => {
+                  if (!character) {
+                    setMessage("Select a character before starting a phone session.");
+                    return;
+                  }
+                  setPhoneBusy(true);
+                  void fetch("/api/capture/session", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      projectId: studio.activeProjectId,
+                      characterId: character.id,
+                      characterName: character.name,
+                      sceneId,
+                      shotId,
+                      origin: window.location.origin,
+                    }),
+                  })
+                    .then(async (response) => {
+                      if (!response.ok) throw new Error("Could not start phone session");
+                      const body = (await response.json()) as { session: { code: string; characterId: string }; url: string };
+                      importedPhoneTakes.current.clear();
+                      setPhoneSession({ code: body.session.code, url: body.url, characterId: body.session.characterId || character.id });
+                      setMessage("Phone session ready. Scan the QR or open the link on your phone (same Wi‑Fi).");
+                    })
+                    .catch(() => setMessage("Could not start phone session. Is the studio server reachable on your LAN?"))
+                    .finally(() => setPhoneBusy(false));
+                }}
+              >
+                {phoneBusy ? "Starting…" : "Start phone session"}
+              </button>
+            )}
             <ul className="mt-2 list-none space-y-1 p-0 text-xs text-muted">
-              <li>Real-time preview — local webcam only</li>
-              <li>Full body tracking — not installed</li>
-              <li>Face and hand capture — not installed</li>
-              <li>Remote control — not connected</li>
+              <li>Desktop webcam — available on this page</li>
+              <li>Phone take upload — {phoneSession ? "listening" : "start a session"}</li>
+              <li>Pose landmarks — {poseReady ? "ready" : tracking.detail}</li>
+              <li>Live wireless viewfinder — not in this build</li>
             </ul>
           </aside>
         </article>
@@ -475,7 +663,10 @@ export function CaptureWorkspace() {
                 onClick={() => studio.selectCharacter(item.id)}
               >
                 {item.name}
-                <span className="mt-1 block text-[11px] font-normal opacity-80">{item.look} · {item.animationStyle}</span>
+                <span className="mt-1 block text-[11px] font-normal opacity-80">
+                  {item.kind}
+                  {item.species ? ` · ${item.species}` : ""} · {item.look}
+                </span>
               </button>
             ))}
             <Link href="/characters" className="grid min-h-[88px] place-items-center rounded-[9px] border border-dashed border-[var(--line)] bg-inset text-sm font-bold text-muted">
@@ -503,24 +694,56 @@ export function CaptureWorkspace() {
         <article className="rounded-[10px] bg-card px-4 py-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="m-0 text-base font-bold">Live Character Preview</h2>
-            <button type="button" className={quietClass} disabled title="Live Sync needs motion retargeting">Live Sync · Off</button>
+            <button
+              type="button"
+              className={quietClass}
+              data-testid="live-sync-toggle"
+              disabled={!poseReady}
+              title={poseReady ? "Pose mirror preview — not motion retargeting" : "Load pose landmarks first"}
+              onClick={() => setLiveSync((value) => !value)}
+            >
+              Live Sync · {liveSync && poseReady ? "On" : "Off"}
+            </button>
           </div>
-          <div className="mt-3 grid min-h-[200px] place-items-end rounded-[9px] p-4 text-[#f1f6ff]" style={{ background: character?.color || "#374a77" }} data-testid="character-preview">
-            <div>
+          <div
+            className="relative mt-3 grid min-h-[200px] place-items-end overflow-hidden rounded-[9px] p-4 text-[#f1f6ff]"
+            style={{ background: character?.color || "#374a77" }}
+            data-testid="character-preview"
+          >
+            {liveSync && poseReady && landmarks?.length ? (
+              <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-80" viewBox="0 0 200 280" aria-hidden data-testid="live-sync-silhouette">
+                <path
+                  d={silhouettePath(landmarks, 200, 280)}
+                  fill="rgba(241,246,255,0.35)"
+                  stroke="#f1f6ff"
+                  strokeWidth="2"
+                />
+              </svg>
+            ) : null}
+            <div className="relative">
               <p className="m-0 text-lg font-bold">{character ? character.name : "No character"}</p>
-              <p className="m-0 mt-1 text-xs opacity-80">Static passport. Not mirroring your pose.</p>
+              <p className="m-0 mt-1 text-xs opacity-80">
+                {character ? `${character.kind}${character.species ? ` · ${character.species}` : ""}` : "Pick a being"}
+              </p>
+              <p className="m-0 mt-1 text-xs opacity-80">
+                {liveSync && poseReady
+                  ? "Pose mirror preview — not motion retargeting."
+                  : "Static passport. Turn on Live Sync when pose landmarks are ready."}
+              </p>
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <span className="rounded-md bg-inset px-2 py-1 text-muted">Facial Tracking · Not installed</span>
+            <span className="rounded-md bg-inset px-2 py-1 text-muted">Pose · {poseReady ? (landmarks ? "Tracking" : "Ready") : "Loading"}</span>
             <span className="rounded-md bg-inset px-2 py-1 text-muted">Voice · {micOn ? "Mic recording" : "Off"}</span>
-            <span className="rounded-md bg-inset px-2 py-1 text-muted">Mirrored Movement · Not available</span>
+            <span className="rounded-md bg-inset px-2 py-1 text-muted">
+              Mirrored Movement · {liveSync && poseReady ? "2D preview" : "Off"}
+            </span>
           </div>
           <ul className="mt-3 list-none space-y-2 p-0 text-sm">
             <li>Raw recording: {preview ? "Ready to save" : phase === "recording" ? "Capturing" : "None in this take"}</li>
             <li>Tracking data: {tracking.detail}</li>
             <li>Motion retargeting: Not available.</li>
-            <li>Rendered character animation: Not created.</li>
+            <li>Rendered character animation: Not created (2D silhouette preview only).</li>
           </ul>
           <label className="mt-3 block text-xs text-muted">
             Performance notes

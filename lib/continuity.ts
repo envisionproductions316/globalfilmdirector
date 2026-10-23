@@ -60,6 +60,7 @@ export type ContinuityWarning = {
     | "clip-take"
     | "unapproved-scene"
     | "audio-overrun"
+    | "timeline-gap"
     | "export-unsupported";
   message: string;
   sceneId: string;
@@ -200,6 +201,37 @@ export function continuityWarnings(input: {
       message: `${project}: the timeline has no video clips, so an MP4 export is not available.`,
     });
   }
+
+  const videoOrdered = clips
+    .filter((clip) => clip.track === "video")
+    .sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id));
+  if (videoOrdered.length > 0) {
+    let cursor = 0;
+    let gapCount = 0;
+    let gapMs = 0;
+    let firstGapClipId = "";
+    for (const clip of videoOrdered) {
+      const hole = clip.startMs - cursor;
+      if (hole > 100) {
+        gapCount += 1;
+        gapMs += hole;
+        if (!firstGapClipId) firstGapClipId = clip.id;
+      }
+      cursor = Math.max(cursor, clip.startMs + Math.max(0, clip.outMs - clip.inMs));
+    }
+    if (gapCount > 0) {
+      const seconds = (gapMs / 1000).toFixed(gapMs >= 1000 ? 1 : 2);
+      warnings.push({
+        ...blank,
+        id: `timeline-gap-${input.projectId}`,
+        kind: "timeline-gap",
+        message: `${project}: picture has ${gapCount} gap${gapCount === 1 ? "" : "s"} totaling ${seconds}s. Close gaps packs clips left without rewriting sources.`,
+        sceneId: videoOrdered.find((clip) => clip.id === firstGapClipId)?.sceneId || "",
+        clipId: firstGapClipId,
+      });
+    }
+  }
+
   for (const clip of clips) {
     const scene = clip.sceneId ? scenes.get(clip.sceneId) : undefined;
     if (input.mediaReady && clip.track !== "captions" && clip.mediaId && !input.mediaIds.has(clip.mediaId)) {

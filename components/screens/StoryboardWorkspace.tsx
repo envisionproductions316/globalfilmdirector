@@ -26,11 +26,28 @@ export function StoryboardWorkspace() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/capture" className="inline-flex h-9 items-center rounded-[7px] bg-accent px-3 text-sm font-bold text-on-accent" onClick={() => studio.setAssetCategory("characters")}>
-            Record for shot
-          </Link>
+          {studio.characters.length > 0 ? (
+            <Link
+              href="/capture"
+              className="inline-flex h-9 items-center rounded-[7px] bg-accent px-3 text-sm font-bold text-on-accent"
+              onClick={() => studio.setAssetCategory("characters")}
+            >
+              Record for shot
+            </Link>
+          ) : (
+            <Link
+              href="/characters"
+              className="inline-flex h-9 items-center rounded-[7px] bg-accent px-3 text-sm font-bold text-on-accent"
+              onClick={() => studio.setAssetCategory("characters")}
+            >
+              Add cast first
+            </Link>
+          )}
           <Link href="/edit" className="inline-flex h-9 items-center rounded-[7px] bg-inset px-3 text-sm" onClick={() => studio.setAssetCategory("media")}>
             Open Edit
+          </Link>
+          <Link href="/locations" className="inline-flex h-9 items-center rounded-[7px] bg-inset px-3 text-sm" onClick={() => studio.setAssetCategory("locations")}>
+            Locations
           </Link>
         </div>
       </div>

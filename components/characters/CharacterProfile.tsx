@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ANIMATION_STYLES, useStudio, type CharacterRecord } from "@/lib/studio";
+import { ANIMATION_STYLES, CHARACTER_KINDS, useStudio, type CharacterKind, type CharacterRecord } from "@/lib/studio";
 
 const fieldClass = "rounded-md bg-inset px-2 py-2 text-sm text-ink";
 
@@ -14,6 +14,29 @@ export function CharacterProfile({ character }: { character: CharacterRecord }) 
       <label className="mt-3 flex flex-col gap-1 text-xs text-muted">
         Name
         <input className={fieldClass} value={character.name} onChange={(event) => studio.updateCharacter(character.id, { name: event.target.value })} />
+      </label>
+      <label className="mt-3 flex flex-col gap-1 text-xs text-muted">
+        Kind
+        <select
+          className={fieldClass}
+          value={character.kind}
+          onChange={(event) => studio.updateCharacter(character.id, { kind: event.target.value as CharacterKind })}
+        >
+          {CHARACTER_KINDS.map((item) => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="mt-3 flex flex-col gap-1 text-xs text-muted">
+        Species / form
+        <input
+          className={fieldClass}
+          value={character.species}
+          placeholder="wolf, dragon, android…"
+          onChange={(event) => studio.updateCharacter(character.id, { species: event.target.value })}
+        />
       </label>
       <label className="mt-3 flex flex-col gap-1 text-xs text-muted">
         Character DNA

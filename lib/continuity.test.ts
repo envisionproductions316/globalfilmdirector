@@ -50,6 +50,50 @@ test("approved scenes stay clean until a field changes", () => {
   assert.equal(after.some((warning) => warning.kind === "approved-modified"), true);
 });
 
+test("picture timeline gaps are reported once for the project", () => {
+  const warnings = continuityWarnings({
+    projectId: "p1",
+    projectTitle: "Cut",
+    characters: [{ id: "max", name: "Max" }],
+    scenes: [scene()],
+    shots: [],
+    takes: [],
+    mediaIds: new Set(["m1", "m2"]),
+    mediaReady: true,
+    clips: [
+      {
+        id: "a",
+        projectId: "p1",
+        name: "A",
+        track: "video",
+        mediaId: "m1",
+        takeId: "",
+        sceneId: "scene-1",
+        shotId: "",
+        startMs: 500,
+        inMs: 0,
+        outMs: 1000,
+      },
+      {
+        id: "b",
+        projectId: "p1",
+        name: "B",
+        track: "video",
+        mediaId: "m2",
+        takeId: "",
+        sceneId: "scene-1",
+        shotId: "",
+        startMs: 2000,
+        inMs: 0,
+        outMs: 1000,
+      },
+    ],
+  });
+  const gaps = warnings.filter((warning) => warning.kind === "timeline-gap");
+  assert.equal(gaps.length, 1);
+  assert.match(gaps[0]!.message, /gap/);
+});
+
 test("missing character, shot, cast, and media are reported separately", () => {
   const warnings = continuityWarnings({
     projectId: "p1",

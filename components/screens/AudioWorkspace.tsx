@@ -24,10 +24,16 @@ export function AudioWorkspace() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/edit" className="inline-flex h-9 items-center rounded-[7px] bg-inset px-3 text-sm" onClick={() => studio.setAssetCategory("media")}>
-            Edit
+            Back to Edit
           </Link>
-          <Link href="/export" className="inline-flex h-9 items-center rounded-[7px] bg-accent px-3 text-sm font-bold text-on-accent">
-            Export
+          <Link
+            href="/export"
+            className={`inline-flex h-9 items-center rounded-[7px] px-3 text-sm ${
+              studio.clips.length ? "bg-accent font-bold text-on-accent" : "bg-inset text-muted"
+            }`}
+            title={studio.clips.length ? undefined : "Add clips to the timeline before export"}
+          >
+            Export {studio.clips.length ? `(${studio.clips.length})` : ""}
           </Link>
         </div>
       </div>

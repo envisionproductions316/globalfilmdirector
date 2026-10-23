@@ -24,6 +24,15 @@ export function PerformanceEditor() {
   const [placeMessage, setPlaceMessage] = useState("");
 
   useEffect(() => {
+    if (!character) return;
+    const stillValid = studio.selectedTakeId && takes.some((take) => take.id === studio.selectedTakeId);
+    if (!stillValid) {
+      studio.selectTake(takes[0]?.id || "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [character?.id, takes.length]);
+
+  useEffect(() => {
     let url = "";
     let cancelled = false;
     setMissing(false);

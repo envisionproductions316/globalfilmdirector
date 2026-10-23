@@ -6,106 +6,6 @@ import { useStudio } from "@/lib/studio";
 
 const buttonClass = "h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent";
 
-export function RoutingBoard() {
-  const routes = [
-    "Animation → Local worker → Approved provider",
-    "Voice → GCIE → Approved backup",
-    "Image → ComfyUI → Cloud provider",
-    "Editing → FFmpeg / compatible NLE",
-    "Storage → Envision Cloud",
-    "Unavailable route → Capability gap",
-  ];
-  return (
-    <div className="mt-4 grid gap-4 lg:grid-cols-2">
-      <article className="rounded-[10px] bg-card px-5 py-4">
-        <h2 className="m-0 text-base font-bold">Routing Policy</h2>
-        <ul className="mt-4 list-none space-y-3 p-0 text-sm">
-          {["Preferred mode: Hybrid", "Priority: Quality / Speed / Cost / Privacy", "Budget approval: Required", "Local-first: Optional", "Fallback chain: Configurable", "Unsupported capability: Explain clearly"].map((item) => (
-            <li key={item} className="rounded-[9px] bg-inset px-3 py-3">{item}</li>
-          ))}
-        </ul>
-        <p className="mt-3 text-[13px] text-muted">APG is not connected. This policy is not routing any provider.</p>
-      </article>
-      <article className="rounded-[10px] bg-card px-5 py-4">
-        <h2 className="m-0 text-base font-bold">Capability Routes</h2>
-        <ul className="mt-4 list-none space-y-2 p-0 text-sm">
-          {routes.map((route) => (
-            <li key={route} className="rounded-[9px] bg-inset px-3 py-4">
-              {route}
-              <span className="mt-1 block text-xs text-muted">Not connected</span>
-            </li>
-          ))}
-        </ul>
-      </article>
-    </div>
-  );
-}
-
-export function WorkerBoard() {
-  const studio = useStudio();
-  const diagnostics = ["Worker online / offline", "Provider latency", "Render ETA (when known)", "Job retries", "Memory / GPU utilization", "Cache / proxy status", "Error details", "Fallback eligibility"];
-  return (
-    <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,0.8fr)]">
-      <article className="rounded-[10px] bg-card px-5 py-4">
-        <h2 className="m-0 text-base font-bold">Job Queue & Performance</h2>
-        <ul className="mt-4 list-none space-y-2 p-0">
-          {studio.jobs.map((job) => (
-            <li key={job.id} className="rounded-[9px] bg-inset px-4 py-3">
-              <p className="m-0">{job.label} · {job.state}{job.sample ? " · sample" : ""}</p>
-              <p className="mt-1 mb-0 text-xs text-muted">No worker is connected. Queue time, provider, retry, and logs are not available.</p>
-            </li>
-          ))}
-        </ul>
-      </article>
-      <article className="rounded-[10px] bg-card px-5 py-4">
-        <h2 className="m-0 text-base font-bold">Diagnostics</h2>
-        <ul className="mt-4 list-none space-y-2 p-0 text-sm">
-          {diagnostics.map((item) => (
-            <li key={item} className="rounded-[9px] bg-inset px-3 py-2">
-              {item}
-              <span className="mt-1 block text-xs text-muted">Not reported</span>
-            </li>
-          ))}
-        </ul>
-      </article>
-    </div>
-  );
-}
-
-const READINESS = [
-  ["Camera & microphone permissions", "Idle until you start the camera on the Capture page."],
-  ["Face tracking support", "Not available. Capture does not track a face."],
-  ["Body / hand tracking support", "Not available."],
-  ["Character rig compatibility", "Not connected. No rig service is installed."],
-  ["Live preview capability", "The character preview does not mirror the camera."],
-  ["Voice model authorization", "Not authorized. No voice service is connected."],
-  ["Local worker connection", "Not connected."],
-  ["Remote provider connection", "Not connected."],
-  ["Asset dependency integrity", "Records stay on this device. No remote asset check ran."],
-];
-
-export function ReadinessBoard() {
-  const studio = useStudio();
-  const [note, setNote] = useState("");
-  return (
-    <article className="mt-4 rounded-[10px] bg-card px-5 py-4">
-      <h2 className="m-0 text-base font-bold">Feature Status & Recovery</h2>
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {READINESS.map(([title, detail]) => (
-          <section key={title} className="rounded-[9px] bg-inset px-4 py-4">
-            <h3 className="m-0 text-sm font-bold">{title}</h3>
-            <p className="mt-2 mb-0 text-[13px] text-muted">{detail}</p>
-            <button type="button" className="mt-3 text-xs text-muted" onClick={() => { setNote(`${title}: nothing was retried. No recovery service is connected.`); studio.recordNote(`${title} was not retried. No recovery service is connected.`); }}>
-              Details · Troubleshoot · Retry
-            </button>
-          </section>
-        ))}
-      </div>
-      {note ? <p className="mt-3 text-sm text-muted">{note}</p> : null}
-    </article>
-  );
-}
-
 export function SequenceBoard() {
   const studio = useStudio();
   const [dragId, setDragId] = useState("");
@@ -333,6 +233,11 @@ export function ContinuityBoard() {
               ) : null}
               {warning.kind === "audio-overrun" ? (
                 <button type="button" className={buttonClass} onClick={() => studio.fitClipToPicture(warning.clipId)}>Trim to picture</button>
+              ) : null}
+              {warning.kind === "timeline-gap" ? (
+                <button type="button" className={buttonClass} data-testid="continuity-close-gaps" onClick={() => studio.closeTimelineGaps("video")}>
+                  Close picture gaps
+                </button>
               ) : null}
             </div>
           </li>

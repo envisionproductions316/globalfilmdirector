@@ -90,26 +90,27 @@ flowchart LR
 | Area | Status | Notes |
 |------|--------|-------|
 | Projects | Done | Create / switch / delete / local save |
-| Director | Done (local) | Notes + plan approval; APG not connected |
-| Characters + Visual Styles | Done | Passport, shot assignments, styles rail |
+| Director | Done (local + optional LLM) | Smooth chat; local apply always; `POST /api/director` when `OPENAI_API_KEY` / `DIRECTOR_API_KEY` set; create project → `/director` |
+| Characters + Visual Styles | Done | `kind` + `species` for humans/animals/creatures; passport + Face/Body/Voice/Wardrobe |
 | Locations | Done | Derived from scenes/shots; opens Storyboard |
-| Capture | Done (raw camera) | 5-step Character Mirror; character-scoped placeTake; Tools Add via `captureAction` |
+| Capture | Done (raw + phone upload + pose) | Webcam record; phone QR session → take upload; MediaPipe pose overlay when model loads; Live Sync = 2D silhouette preview only (not retarget) |
 | Storyboard | Done | Shots / Sequence / Scene / Continuity / Graph |
 | Edit | Done | Multitrack timeline, import, captions, SequencePlayer |
 | Audio | Done | Same timeline; mix; narration; Music/SFX preferred import track |
 | Export | Done (local FFmpeg) | Probe + encode H.264/AAC MP4; sample queue rows labeled |
-| Connectors | Catalog only | Marketplace / routing / readiness; all Not connected |
+| Connectors | Real local tools only | FFmpeg, browser AV, this-device storage, shared timeline; `/api/connectors/probe`; no cloud marketplace stubs |
+| Machine tools (PC) | Installed, not wired | Blender, Kdenlive, OpenToonz, Whisper, Rhubarb on this Windows machine — see [`MACHINE_TOOLS.md`](MACHINE_TOOLS.md). Not Connect cards. |
 
 ## Intentionally not live
 
-Do not implement UI that pretends these work until they are installed and tested:
+Do not implement UI that pretends these work until they are integrated and tested:
 
-- APG, GCIE, Envision Cloud
-- MediaPipe face/body/hand tracking
-- Motion retargeting / Live Sync / mirrored character preview
-- Wireless phone camera
-- AI lip-sync / expression / regenerate-motion tools
-- Blender / ComfyUI workers
+- APG / GCIE as Director providers (optional OpenAI-compatible LLM via env is the cloud path for now)
+- Envision Cloud
+- Motion retargeting / mesh Live Sync (2D silhouette preview is not retargeting)
+- Live wireless phone viewfinder (phone records & uploads takes; not a live remote camera feed)
+- AI lip-sync / expression / regenerate-motion tools (Rhubarb is on the PC; app does not call it yet)
+- Blender / ComfyUI workers (Blender is installed; ComfyUI is not; neither is a studio worker yet)
 
 ## Recent handoff highlights
 

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { CharacterProfile } from "@/components/characters/CharacterProfile";
 import { useStudio } from "@/lib/studio";
-import { TRACK_META, formatTimecode, clipSpan, trackMeta } from "@/lib/timeline";
+import { FRAME_MS, TRACK_META, clipSpan, formatSeconds, formatTimecode, secondsToMs, trackMeta, type TrackId } from "@/lib/timeline";
 
 const fieldClass = "rounded-md bg-inset px-2 py-2 text-sm text-ink";
 
@@ -26,13 +26,17 @@ export function ContextPanel() {
               <li key={project.id}>
                 <button
                   type="button"
-                  className="w-full rounded-[9px] bg-inset px-3 py-3 text-left"
-                  onClick={() => studio.setActiveProjectId(project.id)}
+                  data-testid={`recent-project-${project.id}`}
+                  className={`w-full rounded-[9px] px-3 py-3 text-left ${project.id === studio.activeProjectId ? "bg-active" : "bg-inset"}`}
+                  onClick={() => {
+                    studio.setActiveProjectId(project.id);
+                    setPendingDeleteId(null);
+                  }}
                 >
                   <strong className="block">{project.title}</strong>
                   <span className="text-[13px] text-muted">
                     {project.kind}
-                    {project.id === studio.activeProjectId ? " · Active" : ""}
+                    {project.id === studio.activeProjectId ? " · Active" : " · Switch to this project"}
                   </span>
                 </button>
               </li>
@@ -43,6 +47,7 @@ export function ContextPanel() {
             <input
               className={fieldClass}
               value={studio.activeProject.title}
+              data-testid="project-title"
               onChange={(event) => studio.updateProject(studio.activeProject.id, { title: event.target.value })}
               onBlur={(event) => {
                 if (!event.target.value.trim()) studio.updateProject(studio.activeProject.id, { title: "Untitled production" });
@@ -54,6 +59,7 @@ export function ContextPanel() {
             <select
               className={fieldClass}
               value={studio.activeProject.kind}
+              data-testid="project-kind"
               onChange={(event) => studio.updateProject(studio.activeProject.id, { kind: event.target.value })}
             >
               {["Feature", "Music video", "Documentary", "Animation", "Draft"].map((kind) => (
@@ -61,15 +67,44 @@ export function ContextPanel() {
               ))}
             </select>
           </label>
-          <p className="mt-3 text-[13px] text-muted">Project id {studio.activeProject.id}</p>
-          <button type="button" className="mt-3 h-9 rounded-[7px] bg-accent px-4 text-[13px] font-bold text-on-accent" onClick={studio.saveLocal}>
+          <p className="mt-3 text-[13px] text-muted">Saved in this browser. Project id {studio.activeProject.id}</p>
+          <button
+            type="button"
+            className="mt-3 h-9 rounded-[7px] bg-accent px-4 text-[13px] font-bold text-on-accent"
+            data-testid="save-project"
+            onClick={() => {
+              studio.saveLocal();
+              setPendingDeleteId(null);
+            }}
+          >
             Save on this device
           </button>
+          <p className="mt-2 text-[12px] text-muted">Autosaves as you edit. Use Save to confirm a snapshot in Notifications.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              href="/characters"
+              className="inline-flex h-9 items-center rounded-[7px] bg-inset px-3 text-[13px]"
+              onClick={() => studio.setAssetCategory("characters")}
+            >
+              Open Characters
+            </Link>
+            <Link href="/director" className="inline-flex h-9 items-center rounded-[7px] bg-inset px-3 text-[13px]">
+              Direction
+            </Link>
+          </div>
           {pendingDeleteId === studio.activeProject.id ? (
             <div className="mt-3">
-              <p className="text-sm">Delete {studio.activeProject.title}? Characters and shots in this project are removed from this device.</p>
+              <p className="text-sm">Delete {studio.activeProject.title}? Characters, takes, and clips in this project are removed from this device.</p>
               <div className="mt-2 flex gap-2">
-                <button type="button" className="h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent" onClick={() => studio.deleteProject(studio.activeProject.id)}>
+                <button
+                  type="button"
+                  className="h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent"
+                  data-testid="confirm-delete-project"
+                  onClick={() => {
+                    studio.deleteProject(studio.activeProject.id);
+                    setPendingDeleteId(null);
+                  }}
+                >
                   Delete project
                 </button>
                 <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-[13px]" onClick={() => setPendingDeleteId(null)}>
@@ -78,7 +113,7 @@ export function ContextPanel() {
               </div>
             </div>
           ) : (
-            <button type="button" className="mt-3 block text-sm text-muted" onClick={() => setPendingDeleteId(studio.activeProject.id)}>
+            <button type="button" className="mt-3 block text-sm text-muted" data-testid="delete-project" onClick={() => setPendingDeleteId(studio.activeProject.id)}>
               Delete project
             </button>
           )}
@@ -157,7 +192,7 @@ export function ContextPanel() {
           ) : (
             <p className="mt-3 text-[13px] text-muted">
               {studio.capturePrefs.tab === "face"
-                ? "Face controls need MediaPipe, which is not installed."
+                ? "Face landmark controls are not wired. Capture can show a body pose overlay; that is not face tracking or retargeting."
                 : studio.capturePrefs.tab === "voice"
                   ? "Voice transform is not connected. The microphone records raw audio only."
                   : "Visual style comes from the character passport. No AI style engine is connected."}
@@ -198,13 +233,21 @@ export function ContextPanel() {
 
           <h3 className="mt-5 text-sm font-bold">Scene Tools</h3>
           <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-            {["Split", "Trim", "Ripple", "Speed"].map((label) => (
-              <button key={label} type="button" className="h-9 rounded-[7px] bg-inset px-2 text-muted" disabled title="Open Edit for timeline tools">
-                {label}
-              </button>
-            ))}
+            <Link href="/edit" className="inline-flex h-9 items-center justify-center rounded-[7px] bg-inset px-2 text-ink">
+              Split / Trim
+            </Link>
+            <Link
+              href="/edit"
+              className="inline-flex h-9 items-center justify-center rounded-[7px] bg-inset px-2 text-ink"
+              title="Open Edit to close picture gaps (ripple pack left)"
+            >
+              Close gaps
+            </Link>
+            <button type="button" className="h-9 rounded-[7px] bg-inset px-2 text-muted" disabled title="Speed changes are not available yet">
+              Speed
+            </button>
           </div>
-          <Link href="/edit" className="mt-2 block text-xs text-accent">Open Edit for Split / Trim</Link>
+          <Link href="/edit" className="mt-2 block text-xs text-accent">Open Edit to trim, split, and close picture gaps</Link>
 
           <h3 className="mt-5 text-sm font-bold">AI Tools</h3>
           <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
@@ -289,26 +332,147 @@ export function ContextPanel() {
 
       {pathname === "/edit" || pathname === "/audio" ? (
         <>
-          <h2 className="m-0 text-base font-bold">{pathname === "/audio" ? "Audio" : "Timeline"}</h2>
-          {studio.selectedClip ? (
+          <h2 className="m-0 text-base font-bold">
+            {studio.assetCategory === "assets" ? "My Assets" : pathname === "/audio" ? "Audio" : "Timeline"}
+          </h2>
+          {studio.assetCategory === "assets" ? (
             <>
-              <p className="mt-3 text-sm">{studio.selectedClip.name}</p>
+              <p className="mt-3 text-sm text-muted">
+                {`${studio.assets.length} file${studio.assets.length === 1 ? "" : "s"} stored for ${studio.activeProject.title}. Import stores without placing; Place on timeline adds clips.`}
+              </p>
+              <ul className="mt-3 list-none space-y-2 p-0 text-sm">
+                {studio.assets.slice(0, 8).map((asset) => (
+                  <li key={asset.id} className="rounded-[9px] bg-inset px-3 py-2">
+                    <strong className="block truncate">{asset.name}</strong>
+                    <span className="text-xs text-muted">
+                      {asset.hasVideo ? "Video" : "Audio"} ·{" "}
+                      {asset.durationMs < 1000 ? `${(asset.durationMs / 1000).toFixed(1)}s` : formatTimecode(asset.durationMs)}
+                      {studio.clips.some((clip) => clip.mediaId === asset.id) ? " · On timeline" : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {studio.assets.length === 0 ? <p className="mt-3 text-sm text-muted">No assets yet. Use Import to My Assets in the Edit bin.</p> : null}
+            </>
+          ) : studio.selectedClip ? (
+            <>
+              <p className="mt-3 text-sm font-bold">{studio.selectedClip.name}</p>
               <p className="mt-2 text-[13px] text-muted">
                 {trackMeta(studio.selectedClip.track).label} · {formatTimecode(clipSpan(studio.selectedClip))} · {studio.selectedClip.characterId || "No character"}
               </p>
-              <p className="mt-2 text-[13px] text-muted">Source file {studio.selectedClip.mediaId}. Trimming does not rewrite it.</p>
+              <label className="mt-3 flex flex-col gap-1 text-xs text-muted">
+                Start (s)
+                <input
+                  className={fieldClass}
+                  type="number"
+                  step={0.04}
+                  min={0}
+                  data-testid="inspector-clip-start"
+                  value={formatSeconds(studio.selectedClip.startMs)}
+                  onChange={(event) => studio.moveTimelineClip(studio.selectedClip!.id, secondsToMs(event.target.value), studio.selectedClip!.track)}
+                />
+              </label>
+              <label className="mt-2 flex flex-col gap-1 text-xs text-muted">
+                In (s)
+                <input
+                  className={fieldClass}
+                  type="number"
+                  step={0.04}
+                  min={0}
+                  data-testid="inspector-trim-in"
+                  value={formatSeconds(studio.selectedClip.inMs)}
+                  onChange={(event) => studio.trimTimelineClip(studio.selectedClip!.id, "in", secondsToMs(event.target.value))}
+                />
+              </label>
+              <label className="mt-2 flex flex-col gap-1 text-xs text-muted">
+                Out (s)
+                <input
+                  className={fieldClass}
+                  type="number"
+                  step={0.04}
+                  min={0}
+                  data-testid="inspector-trim-out"
+                  value={formatSeconds(studio.selectedClip.outMs)}
+                  onChange={(event) => studio.trimTimelineClip(studio.selectedClip!.id, "out", secondsToMs(event.target.value))}
+                />
+              </label>
+              <label className="mt-2 flex flex-col gap-1 text-xs text-muted">
+                Volume
+                <input
+                  className="mt-1 w-full"
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  data-testid="inspector-clip-volume"
+                  value={studio.selectedClip.volume}
+                  onChange={(event) => studio.updateClip(studio.selectedClip!.id, { volume: Number(event.target.value) })}
+                />
+              </label>
+              <label className="mt-2 flex flex-col gap-1 text-xs text-muted">
+                Track
+                <select
+                  className={fieldClass}
+                  value={studio.selectedClip.track}
+                  data-testid="inspector-clip-track"
+                  onChange={(event) => studio.moveTimelineClip(studio.selectedClip!.id, studio.selectedClip!.startMs, event.target.value as TrackId)}
+                >
+                  {TRACK_META.map((track) => (
+                    <option key={track.id} value={track.id}>
+                      {track.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="h-8 rounded-md bg-inset px-2 text-xs"
+                  data-testid="inspector-split"
+                  onClick={() => studio.splitTimelineClip(studio.selectedClip!.id, studio.playheadMs)}
+                >
+                  Split at playhead
+                </button>
+                <button
+                  type="button"
+                  className="h-8 rounded-md bg-inset px-2 text-xs"
+                  onClick={() => studio.moveTimelineClip(studio.selectedClip!.id, Math.max(0, studio.selectedClip!.startMs - FRAME_MS), studio.selectedClip!.track)}
+                >
+                  −1 frame
+                </button>
+                <button
+                  type="button"
+                  className="h-8 rounded-md bg-inset px-2 text-xs"
+                  onClick={() => studio.moveTimelineClip(studio.selectedClip!.id, studio.selectedClip!.startMs + FRAME_MS, studio.selectedClip!.track)}
+                >
+                  +1 frame
+                </button>
+              </div>
+              <p className="mt-2 text-[12px] text-muted">Trimming does not rewrite the source file.</p>
             </>
           ) : (
-            <p className="mt-3 text-sm text-muted">No clip is selected. The timeline is shared by Edit and Audio.</p>
+            <p className="mt-3 text-sm text-muted">No clip is selected. Place media on the timeline, then select a clip to adjust start, in/out, volume, or track.</p>
           )}
           <label className="mt-3 flex flex-col gap-1 text-xs text-muted">
-            Track
+            Preferred track
             <select className="rounded-md bg-inset px-2 py-2 text-sm text-ink" value={studio.selectedAudioTrack} onChange={(event) => studio.setSelectedAudioTrack(event.target.value)}>
               {TRACK_META.map((track) => (
                 <option key={track.id} value={track.id}>{track.label}</option>
               ))}
             </select>
           </label>
+          {studio.timelineGaps.length > 0 ? (
+            <button
+              type="button"
+              className="mt-3 h-9 w-full rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent"
+              data-testid="inspector-close-gaps"
+              onClick={() => studio.closeTimelineGaps("video")}
+            >
+              Close {studio.timelineGaps.length} picture gap{studio.timelineGaps.length === 1 ? "" : "s"}
+            </button>
+          ) : (
+            <p className="mt-3 text-[12px] text-muted">No picture gaps on the shared timeline.</p>
+          )}
           {pathname === "/audio" ? <p className="mt-3 text-[13px] text-muted">GCIE is not connected. Volume, mute, and fades apply to imported or recorded files only.</p> : null}
         </>
       ) : null}
@@ -316,7 +480,7 @@ export function ContextPanel() {
       {pathname === "/export" ? (
         <>
           <h2 className="m-0 text-base font-bold">Quality & Export</h2>
-          <p className="mt-3 text-sm text-muted">The queue encodes the shared timeline with local FFmpeg. A row is completed only after the MP4 is written. Blender, ComfyUI, and Envision Cloud are not connected.</p>
+          <p className="mt-3 text-sm text-muted">The queue encodes the shared timeline with local FFmpeg on this computer. A row is completed only after the MP4 is written.</p>
           <p className="mt-3 text-sm">{studio.warnings.filter((warning) => warning.kind === "export-unsupported" || warning.kind === "clip-media").map((warning) => warning.message).join(" ") || "No export-blocking warnings are stored."}</p>
         </>
       ) : null}
@@ -324,9 +488,9 @@ export function ContextPanel() {
       {pathname === "/connectors" ? (
         <>
           <h2 className="m-0 text-base font-bold">{studio.selectedConnector.name}</h2>
-          <p className="mt-3 text-sm">Status: Not connected</p>
-          <p className="mt-2 text-sm text-muted">{studio.selectedConnector.kind}</p>
-          <p className="mt-2 text-sm text-muted">{studio.selectedConnector.detail}</p>
+          <p className="mt-3 text-sm text-muted">{studio.selectedConnector.kind} tool</p>
+          <p className="mt-2 text-sm">{studio.selectedConnector.detail}</p>
+          <p className="mt-2 text-[13px] text-muted">Used by {studio.selectedConnector.usedBy}</p>
           <h3 className="mt-4 text-sm font-bold">Permissions</h3>
           <ul className="mt-2 list-none space-y-2 p-0 text-sm">
             {studio.selectedConnector.permissions.map((permission) => (
@@ -335,7 +499,7 @@ export function ContextPanel() {
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-[13px] text-muted">Viewing a connector does not install it or send credentials.</p>
+          <p className="mt-3 text-[13px] text-muted">This page lists only tools the studio actually uses on this device.</p>
         </>
       ) : null}
     </aside>

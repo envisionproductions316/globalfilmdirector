@@ -99,12 +99,37 @@ export function endOfTrack(clips: TimelineClip[], track: TrackId) {
   return timelineDuration(clips.filter((clip) => clip.track === track));
 }
 
+/** Timeline edit quantum (~24 fps). Used for keyboard frame nudges. */
+export const FRAME_MS = 40;
+
+export const ZOOM_MIN = 16;
+export const ZOOM_MAX = 240;
+
 export function formatTimecode(ms: number) {
   const total = Math.max(0, Math.floor(ms / 1000));
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const seconds = total % 60;
   return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
+}
+
+/** Seconds with hundredths for trim/position fields. */
+export function formatSeconds(ms: number) {
+  return (Math.max(0, ms) / 1000).toFixed(2);
+}
+
+export function secondsToMs(value: string | number) {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.round(n * 1000)) : 0;
+}
+
+export function snapMs(ms: number, gridMs = 100) {
+  if (gridMs <= 0) return Math.round(ms);
+  return Math.round(ms / gridMs) * gridMs;
+}
+
+export function clampZoom(pixels: number) {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(pixels)));
 }
 
 function finite(value: unknown, fallback: number) {
@@ -394,6 +419,79 @@ export function fitGroupToPicture(clips: TimelineClip[], id: string) {
     const overflow = clipEnd(item) - picture;
     if (overflow <= 250) return item;
     return { ...item, outMs: Math.max(item.inMs + 40, item.outMs - overflow) };
+  });
+}
+
+/** Holes shorter than this are ignored (trim jitter / frame quantum). */
+export const GAP_MIN_MS = 100;
+
+export type TimelineGap = {
+  track: TrackId;
+  startMs: number;
+  endMs: number;
+  /** Clip ending just before the hole, or empty for a leading gap. */
+  afterClipId: string;
+  /** Clip that begins after the hole. */
+  beforeClipId: string;
+};
+
+export function findTrackGaps(clips: TimelineClip[], track: TrackId, minGapMs = GAP_MIN_MS): TimelineGap[] {
+  const ordered = clips
+    .filter((clip) => clip.track === track)
+    .sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id));
+  const gaps: TimelineGap[] = [];
+  let cursor = 0;
+  let prevId = "";
+  for (const clip of ordered) {
+    if (clip.startMs > cursor + minGapMs) {
+      gaps.push({
+        track,
+        startMs: cursor,
+        endMs: clip.startMs,
+        afterClipId: prevId,
+        beforeClipId: clip.id,
+      });
+    }
+    cursor = Math.max(cursor, clipEnd(clip));
+    prevId = clip.id;
+  }
+  return gaps;
+}
+
+export function gapSpan(gap: Pick<TimelineGap, "startMs" | "endMs">) {
+  return Math.max(0, gap.endMs - gap.startMs);
+}
+
+/**
+ * Pack clips on a track left to remove holes. Linked group members (e.g. dialogue
+ * tied to video) shift by the same delta so A/V stay together. Sources are not rewritten.
+ */
+export function closeTrackGaps(clips: TimelineClip[], track: TrackId, minGapMs = GAP_MIN_MS): TimelineClip[] {
+  const ordered = clips
+    .filter((clip) => clip.track === track)
+    .sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id));
+  if (ordered.length === 0) return clips;
+
+  const deltaById = new Map<string, number>();
+  let cursor = 0;
+  let changed = false;
+  for (const clip of ordered) {
+    const hasGap = clip.startMs > cursor + minGapMs;
+    const nextStart = hasGap ? cursor : clip.startMs;
+    const delta = nextStart - clip.startMs;
+    if (delta !== 0) {
+      changed = true;
+      for (const member of groupMembers(clips, clip)) {
+        deltaById.set(member.id, (deltaById.get(member.id) ?? 0) + delta);
+      }
+    }
+    cursor = nextStart + clipSpan(clip);
+  }
+  if (!changed) return clips;
+  return clips.map((clip) => {
+    const delta = deltaById.get(clip.id);
+    if (!delta) return clip;
+    return { ...clip, startMs: Math.max(0, clip.startMs + delta) };
   });
 }
 

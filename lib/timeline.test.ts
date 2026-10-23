@@ -3,7 +3,7 @@ import test from "node:test";
 import { continuityWarnings } from "./continuity.ts";
 import { buildExportPlan } from "./export-plan.ts";
 import { parseCaptions } from "./captions.ts";
-import { audible, completeClip, gainAt, nudgeClip, nudgeGroup, splitClip, timelineDuration, trimClip, trimGroup, type TimelineClip, type TrackMix } from "./timeline.ts";
+import { audible, clampZoom, closeTrackGaps, completeClip, findTrackGaps, formatSeconds, gainAt, gapSpan, nudgeClip, nudgeGroup, secondsToMs, snapMs, splitClip, timelineDuration, trimClip, trimGroup, type TimelineClip, type TrackMix } from "./timeline.ts";
 
 function clip(patch: Partial<TimelineClip> = {}): TimelineClip {
   return {
@@ -188,4 +188,53 @@ test("caption import and export burn-in use the cue text", () => {
   const filter = plan.args[plan.args.indexOf("-filter_complex") + 1];
   assert.match(filter, /subtitles=filename=/);
   assert.match(plan.notes.join(" "), /burned into the picture/);
+});
+
+test("snap, seconds fields, and zoom clamp support adjustable timeline UI", () => {
+  assert.equal(snapMs(148, 100), 100);
+  assert.equal(snapMs(151, 100), 200);
+  assert.equal(formatSeconds(1500), "1.50");
+  assert.equal(secondsToMs("2.04"), 2040);
+  assert.equal(clampZoom(10), 16);
+  assert.equal(clampZoom(400), 240);
+  assert.equal(clampZoom(48), 48);
+});
+
+test("picture gaps are detected and close packs left with linked dialogue", () => {
+  const first = clip({ id: "v1", startMs: 0, outMs: 1000, groupId: "g1" });
+  const dialogue = clip({ id: "d1", track: "dialogue", startMs: 0, outMs: 1000, groupId: "g1", mediaId: "media-a" });
+  const second = clip({ id: "v2", name: "Second", startMs: 2500, outMs: 1000, groupId: "g2" });
+  const dialogue2 = clip({ id: "d2", track: "dialogue", name: "Line 2", startMs: 2500, outMs: 1000, groupId: "g2", mediaId: "media-b" });
+  const gaps = findTrackGaps([first, dialogue, second, dialogue2], "video");
+  assert.equal(gaps.length, 1);
+  assert.equal(gaps[0]?.startMs, 1000);
+  assert.equal(gaps[0]?.endMs, 2500);
+  assert.equal(gapSpan(gaps[0]!), 1500);
+
+  const packed = closeTrackGaps([first, dialogue, second, dialogue2], "video");
+  assert.equal(findTrackGaps(packed, "video").length, 0);
+  assert.equal(packed.find((item) => item.id === "v2")?.startMs, 1000);
+  assert.equal(packed.find((item) => item.id === "d2")?.startMs, 1000);
+  assert.equal(packed.find((item) => item.id === "v1")?.startMs, 0);
+});
+
+test("continuity warns on picture gaps without rewriting clips", () => {
+  const warnings = continuityWarnings({
+    projectId: "p1",
+    projectTitle: "Gap film",
+    characters: [{ id: "max", name: "Max" }],
+    scenes: [],
+    shots: [],
+    takes: [],
+    mediaIds: new Set(["media-a"]),
+    mediaReady: true,
+    clips: [
+      clip({ id: "v1", startMs: 0, outMs: 1000 }),
+      clip({ id: "v2", name: "Later", startMs: 3000, outMs: 1000 }),
+    ],
+  });
+  const gap = warnings.find((warning) => warning.kind === "timeline-gap");
+  assert.ok(gap);
+  assert.match(gap!.message, /1 gap/);
+  assert.match(gap!.message, /2/);
 });

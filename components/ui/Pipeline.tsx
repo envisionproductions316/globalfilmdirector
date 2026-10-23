@@ -32,7 +32,8 @@ export function Pipeline() {
               aria-current={active ? "page" : undefined}
               onClick={() => {
                 if (step.category) studio.setAssetCategory(step.category);
-                if (step.href === "/audio") studio.setSelectedAudioTrack(studio.assetCategory === "sfx" ? "sfx" : "music");
+                if (step.href === "/audio") studio.setSelectedAudioTrack("music");
+                if (step.href === "/export") studio.setAssetCategory("media");
               }}
             >
               {step.label}

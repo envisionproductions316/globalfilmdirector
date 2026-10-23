@@ -34,8 +34,20 @@ export function LocationsWorkspace() {
 
   return (
     <section>
-      <h1 className="m-0 text-[26px] font-bold">Locations</h1>
-      <p className="mt-2 text-[15px] text-muted">Places used by scenes and shots in this project. This is a production list, not a world builder.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="m-0 text-[26px] font-bold">Locations</h1>
+          <p className="mt-2 text-[15px] text-muted">Places used by scenes and shots in this project. This is a production list, not a world builder.</p>
+        </div>
+        <Link
+          href="/storyboard"
+          className="inline-flex h-9 items-center rounded-[7px] bg-accent px-3 text-sm font-bold text-on-accent"
+          data-testid="locations-to-storyboard"
+          onClick={() => studio.setAssetCategory("scenes")}
+        >
+          Edit in Storyboard
+        </Link>
+      </div>
       <ul className="mt-4 grid list-none gap-3 p-0 sm:grid-cols-2 xl:grid-cols-3">
         {locations.map((location) => (
           <li key={location.name} className="rounded-[10px] bg-card px-4 py-4">
@@ -62,11 +74,21 @@ export function LocationsWorkspace() {
               >
                 Open in Storyboard
               </Link>
-            ) : null}
+            ) : (
+              <p className="mt-3 text-xs text-muted">Shot-only location. Assign it to a scene in Storyboard.</p>
+            )}
           </li>
         ))}
       </ul>
-      {locations.length === 0 ? <p className="mt-4 text-sm text-muted">No locations yet. Assign a location on a scene or shot.</p> : null}
+      {locations.length === 0 ? (
+        <p className="mt-4 text-sm text-muted">
+          No locations yet.{" "}
+          <Link href="/storyboard" className="text-accent" onClick={() => studio.setAssetCategory("scenes")}>
+            Open Storyboard
+          </Link>{" "}
+          and set a location on a scene or shot.
+        </p>
+      ) : null}
     </section>
   );
 }

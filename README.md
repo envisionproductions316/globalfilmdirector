@@ -1,6 +1,6 @@
 # Global Film Director
 
-Local film studio for projects, direction, characters, capture, storyboard, edit, audio, and export. Media and project state stay on the device. Cloud AI / retargeting connectors are listed but not connected.
+Local film studio for projects, direction, characters, capture, storyboard, edit, audio, and export. Media and project state stay on the device. Connectors are local tools only (FFmpeg, browser AV, storage, timeline). Optional Director LLM via env key; no fake cloud marketplace.
 
 Design source: [Figma file](https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4) · Repo: [envisionproductions316/globalfilmdirector](https://github.com/envisionproductions316/globalfilmdirector)
 
@@ -33,12 +33,13 @@ Port defaults to `5180`. Override with `PORT=…`.
 
 ### Typical workflow
 
-1. **Projects** — create a production  
-2. **Characters** — add cast  
-3. **Capture** — record a raw take (not retargeted animation)  
-4. **Add to Timeline** — places the take on the shared Edit/Audio timeline  
-5. **Edit / Audio** — trim, mix, import media or captions  
-6. **Export** — encode a local H.264/AAC MP4 when FFmpeg is available  
+1. **Projects** — create a production (opens **Director**)  
+2. **Director** — prompt to shape the plan and seed humans/animals/creatures (local apply; optional LLM with API key)  
+3. **Characters** — refine any being (kind + species)  
+4. **Capture** — webcam or phone QR take upload; optional pose overlay / 2D Live Sync preview (not mesh retarget)  
+5. **Add to Timeline** — places the raw take on the shared Edit/Audio timeline  
+6. **Edit / Audio** — trim, mix, import media or captions  
+7. **Export** — encode a local H.264/AAC MP4 when FFmpeg is available  
 
 ## Production build (deployment on this machine)
 
@@ -91,7 +92,9 @@ Open http://127.0.0.1:5180
 
 ## What is intentionally not connected
 
-APG, GCIE, Envision Cloud, MediaPipe tracking, motion retargeting, Live Sync, wireless phone camera, Blender/ComfyUI workers. UI labels those as unavailable.
+APG/GCIE as studio providers, Envision Cloud, mesh motion retargeting, live wireless phone viewfinder, face/hand landmarkers, AI lip-sync / regenerate-motion tools, Blender/ComfyUI workers.  
+
+**Partially available (honest):** Director local apply (+ optional OpenAI-compatible LLM); MediaPipe **pose** overlay + 2D Live Sync silhouette; phone **record & upload** via QR (`CAPTURE_PUBLIC_ORIGIN` or desktop `window.location.origin` for LAN links). See `docs/DEVELOPER_STATUS.md` and `docs/MACHINE_TOOLS.md`.
 
 ## Agent / design notes
 

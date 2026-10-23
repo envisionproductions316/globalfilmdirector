@@ -19,7 +19,7 @@ export function ExportControl() {
       .then((response) => response.json())
       .then((body: { available?: boolean; version?: string; h264?: boolean; aac?: boolean; error?: string }) => {
         if (cancelled) return;
-        if (body.available && body.h264 && body.aac) setFfmpeg(`Local FFmpeg ${body.version} can encode H.264 and AAC. Blender, ComfyUI, APG, GCIE, and Envision Cloud are not connected.`);
+        if (body.available && body.h264 && body.aac) setFfmpeg(`Local FFmpeg ${body.version} can encode H.264 and AAC on this computer.`);
         else setFfmpeg(body.error || "FFmpeg cannot encode this timeline on this computer.");
       })
       .catch(() => {

@@ -97,7 +97,7 @@
         "width": 1440,
         "height": 900
       },
-      "notes": "Blended shell: header destinations, asset rail, Capture five-step studio, honest unavailable stubs for tracking/AI/phone/cloud."
+      "notes": "CURRENT (implemented honesty target): blended shell, five-step Capture, QR phone upload, pose overlay / 2D Live Sync, stubs for mesh/AI/live viewfinder. Do not overwrite — clone for labeled Current page."
     },
     {
       "number": 4,
@@ -110,8 +110,35 @@
         "width": 1440,
         "height": 900
       },
-      "notes": "HTML-to-design capture of /capture after shell blend. Reference only."
+      "notes": "PROPOSED (future target): live phone viewfinder, 3D character, performance blending, Capture-embedded multitrack, AI/camera tools. Preserve as Proposed — not shipping capability. Do not overwrite."
     },
+    {
+      "number": 4,
+      "name": "CURRENT — Character Mirror (clone of Studio Layout)",
+      "theme": "Night",
+      "section": "07-current-vs-proposed",
+      "nodeId": "52:4",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=52-4",
+      "size": {
+        "width": 1440,
+        "height": 900
+      },
+      "notes": "Page 07 — Current vs Proposed (page 52:2). Clone of 50:2. Source preserved."
+    },
+    {
+      "number": 4,
+      "name": "PROPOSED — Character Mirror (clone of Live Capture Reference)",
+      "theme": "Night",
+      "section": "07-current-vs-proposed",
+      "nodeId": "52:32",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=52-32",
+      "size": {
+        "width": 1440,
+        "height": 900
+      },
+      "notes": "Page 07 — Current vs Proposed. Clone of 51:2. Proposed target experience retained. Source preserved."
+    },
+
     {
       "number": 4,
       "name": "Character Mirror Capture",

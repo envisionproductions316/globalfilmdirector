@@ -37,15 +37,16 @@ export function GlobalHeader() {
         </div>
       </div>
 
-      <nav aria-label="Destinations" className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-1">
+      <nav aria-label="Destinations" className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-1" data-testid="destination-rail">
         {DESTINATIONS.map((item) => {
-          const active = pathname === item.href || (item.href === "/director" && pathname === "/director");
+          const active = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
               title={item.label}
+              data-testid={`dest-${item.href.replace("/", "") || "home"}`}
               onClick={() => {
                 if (item.href === "/characters") studio.setAssetCategory("characters");
                 if (item.href === "/locations") studio.setAssetCategory("locations");
@@ -53,6 +54,7 @@ export function GlobalHeader() {
                 if (item.href === "/edit") studio.setAssetCategory("media");
                 if (item.href === "/audio") studio.setAssetCategory(studio.selectedAudioTrack === "sfx" ? "sfx" : "music");
                 if (item.href === "/capture") studio.setAssetCategory("characters");
+                if (item.href === "/export") studio.setAssetCategory("media");
               }}
               className={`flex h-10 min-w-10 flex-col items-center justify-center rounded-md px-2 text-[10px] ${
                 active ? "bg-active text-ink" : "text-muted hover:bg-inset hover:text-ink"
@@ -96,8 +98,8 @@ export function GlobalHeader() {
           </select>
         </label>
 
-        <button type="button" className="min-h-9 rounded-md bg-inset px-3 text-xs text-muted" title="Envision Cloud is not connected">
-          Cloud · Off
+        <button type="button" className="min-h-9 rounded-md bg-inset px-3 text-xs text-muted" title="Projects and media stay on this device. No cloud account is linked.">
+          Local only
         </button>
 
         <div className="relative">

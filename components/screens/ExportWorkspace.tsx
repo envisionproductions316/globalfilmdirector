@@ -47,13 +47,17 @@ export function ExportWorkspace() {
           )}
           <ExportControl />
           <ul className="mt-4 flex list-none flex-col gap-3 p-0">
-            {studio.jobs.map((job) => (
-              <li key={job.id} className="rounded-[9px] bg-inset px-4 py-5 text-base">
-                {job.label} • {job.state}
-                {job.sample ? " · sample" : ""}
-              </li>
-            ))}
+            {studio.jobs
+              .filter((job) => !job.sample)
+              .map((job) => (
+                <li key={job.id} className="rounded-[9px] bg-inset px-4 py-5 text-base">
+                  {job.label} • {job.state}
+                </li>
+              ))}
           </ul>
+          {studio.jobs.filter((job) => !job.sample).length === 0 && studio.clips.length > 0 ? (
+            <p className="mt-3 text-sm text-muted">No exports yet. Encode above when FFmpeg is available.</p>
+          ) : null}
         </article>
       ) : (
         <AssemblyBoard />

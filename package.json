@@ -12,11 +12,12 @@
     "build": "node scripts/run-next.mjs build",
     "start": "node scripts/start-production.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test lib/continuity.test.ts lib/timeline.test.ts",
+    "test": "node --experimental-strip-types --test lib/continuity.test.ts lib/timeline.test.ts lib/director-apply.test.ts",
     "check": "node scripts/check-ready.mjs",
     "ready": "npm run typecheck && npm test && npm run build && npm run check"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.18",
     "next": "^15.5.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

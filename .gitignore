@@ -5,3 +5,12 @@ out
 .DS_Store
 *.log
 *.tsbuildinfo
+.env
+.env.local
+.env.*.local
+desktop/node_modules
+desktop/dist
+release
+*.exe
+*.dmg
+*.AppImage

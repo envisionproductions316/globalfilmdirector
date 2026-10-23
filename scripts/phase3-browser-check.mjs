@@ -120,7 +120,8 @@ try {
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
     const tracker = input._valueTracker;
     if (tracker) tracker.setValue("0");
-    setter.call(input, "1000");
+    // Out point is edited in seconds (1.00s → 1000ms source out).
+    setter.call(input, "1");
     input.dispatchEvent(new Event("input", { bubbles: true }));
     return true;
   })()`);
