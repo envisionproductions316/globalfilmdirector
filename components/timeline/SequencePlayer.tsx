@@ -38,7 +38,7 @@ export function SequencePlayer({
   onPlayheadRef.current = onPlayhead;
   onPlayingRef.current = onPlaying;
 
-  const mediaKey = [...new Set(clips.map((clip) => clip.mediaId))].sort().join("|");
+  const mediaKey = [...new Set(clips.filter((clip) => clip.track !== "captions").map((clip) => clip.mediaId))].sort().join("|");
 
   useEffect(() => {
     let cancelled = false;
@@ -176,17 +176,17 @@ export function SequencePlayer({
   }
 
   const activeVideo = [...clips].reverse().find((clip) => clip.track === "video" && playheadMs >= clip.startMs && playheadMs < clipEnd(clip));
-  const span = activeVideo ? clipEnd(activeVideo) - activeVideo.startMs : 0;
+  const caption = [...clips].reverse().find((clip) => clip.track === "captions" && clip.text && playheadMs >= clip.startMs && playheadMs < clipEnd(clip));
 
   return (
-    <div className="grid min-h-[220px] place-items-center overflow-hidden rounded-[9px] bg-[#34436d] text-center text-[#f1f6ff]">
+    <div className="relative grid min-h-[220px] place-items-center overflow-hidden rounded-[9px] bg-[#34436d] text-center text-[#f1f6ff]">
       <video ref={videoRef} className={`max-h-[250px] w-full ${activeVideo ? "" : "hidden"}`} playsInline muted data-testid="sequence-video" />
       {activeVideo ? null : (
         <p className="m-0 px-4 text-sm" data-testid="monitor-empty">
           {clips.some((clip) => clip.track === "video") ? "No picture at the playhead." : "No video clip is on the timeline. This monitor is not playing a rendered film."}
-          {span ? "" : ""}
         </p>
       )}
+      {caption ? <p className="absolute bottom-3 left-3 right-3 rounded bg-black/70 px-2 py-1 text-sm text-[#f1f6ff]" data-testid="caption-line">{caption.text}</p> : null}
     </div>
   );
 }

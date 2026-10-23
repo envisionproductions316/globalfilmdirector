@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { cuesToSrt } from "@/lib/captions";
 import { buildExportPlan, type ExportSource } from "@/lib/export-plan";
 import { completeClip, completeMix, type TimelineClip, type TrackMix } from "@/lib/timeline";
 
@@ -60,15 +61,22 @@ export async function probeFfmpeg() {
   if (probeResult && Date.now() - probeAt < 30_000) return probeResult;
   const listed = await run("ffmpeg", ["-hide_banner", "-version"]);
   const versionLine = `${listed.stdout}\n${listed.stderr}`.split(/\r?\n/).find((line) => line.startsWith("ffmpeg version")) ?? "";
-  const available = listed.code === 0 && versionLine.startsWith("ffmpeg version");
-  const codecs = available ? await run("ffmpeg", ["-hide_banner", "-encoders"]) : { code: 1, stdout: "", stderr: "" };
+  const ffmpegOk = listed.code === 0 && versionLine.startsWith("ffmpeg version");
+  const probe = ffmpegOk ? await run("ffprobe", ["-hide_banner", "-version"]) : { code: 1, stdout: "", stderr: "" };
+  const probeOk = probe.code === 0 && `${probe.stdout}\n${probe.stderr}`.includes("ffprobe");
+  const codecs = ffmpegOk ? await run("ffmpeg", ["-hide_banner", "-encoders"]) : { code: 1, stdout: "", stderr: "" };
   const encoderText = `${codecs.stdout}\n${codecs.stderr}`;
+  const available = ffmpegOk && probeOk;
   probeResult = {
     available,
     version: versionLine.replace("ffmpeg version ", "").split(" ")[0] || "",
     h264: encoderText.includes("libx264"),
     aac: encoderText.includes("aac"),
-    error: available ? "" : "FFmpeg is not available on this computer. Nothing was exported.",
+    error: !ffmpegOk
+      ? "FFmpeg is not available on this computer. Nothing was exported."
+      : !probeOk
+        ? "ffprobe is not available on this computer. Nothing was exported."
+        : "",
   };
   ffmpegPath = available ? "ffmpeg" : "";
   probeAt = Date.now();
@@ -173,7 +181,15 @@ export async function startExport(manifest: ExportManifest, files: { mediaId: st
     sources.push({ mediaId: file.mediaId, path: filePath, hasVideo: probed.hasVideo, hasAudio: probed.hasAudio });
   }
   const outputPath = path.join(directory, "timeline.mp4");
-  const plan = buildExportPlan(clips, mix, sources, outputPath);
+  const captionCues = clips
+    .filter((clip) => clip.track === "captions" && clip.text.trim())
+    .map((clip) => ({ startMs: clip.startMs, endMs: clip.startMs + Math.max(40, clip.outMs - clip.inMs), text: clip.text }));
+  let subtitlePath = "";
+  if (captionCues.length > 0) {
+    subtitlePath = path.join(directory, "captions.srt");
+    await writeFile(subtitlePath, cuesToSrt(captionCues), "utf8");
+  }
+  const plan = buildExportPlan(clips, mix, sources, outputPath, subtitlePath);
   if (plan.error) {
     await rm(directory, { recursive: true, force: true });
     return { error: plan.error, notes: plan.notes, status: 400 as const };

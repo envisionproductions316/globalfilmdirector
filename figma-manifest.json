@@ -88,6 +88,32 @@
     },
     {
       "number": 4,
+      "name": "Character Mirror Capture — Studio Layout",
+      "theme": "Night",
+      "section": "01-core",
+      "nodeId": "50:2",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=50-2",
+      "size": {
+        "width": 1440,
+        "height": 900
+      },
+      "notes": "Blended shell: header destinations, asset rail, Capture five-step studio, honest unavailable stubs for tracking/AI/phone/cloud."
+    },
+    {
+      "number": 4,
+      "name": "Character Mirror Capture — Live Capture Reference",
+      "theme": "Night",
+      "section": "01-core",
+      "nodeId": "51:2",
+      "figmaUrl": "https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4?node-id=51-2",
+      "size": {
+        "width": 1440,
+        "height": 900
+      },
+      "notes": "HTML-to-design capture of /capture after shell blend. Reference only."
+    },
+    {
+      "number": 4,
       "name": "Character Mirror Capture",
       "theme": "Day",
       "section": "01-core",

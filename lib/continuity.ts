@@ -85,7 +85,7 @@ export function sceneFingerprint(scene: Pick<ContinuityScene, "title" | "descrip
   ].join("\u001f");
 }
 
-const AUDIO_TRACKS = new Set(["dialogue", "voice", "music", "sfx"]);
+const TIMED_TRACKS = new Set(["dialogue", "voice", "music", "sfx", "captions"]);
 
 export function continuityWarnings(input: {
   projectId: string;
@@ -202,7 +202,7 @@ export function continuityWarnings(input: {
   }
   for (const clip of clips) {
     const scene = clip.sceneId ? scenes.get(clip.sceneId) : undefined;
-    if (input.mediaReady && clip.mediaId && !input.mediaIds.has(clip.mediaId)) {
+    if (input.mediaReady && clip.track !== "captions" && clip.mediaId && !input.mediaIds.has(clip.mediaId)) {
       warnings.push({
         ...blank,
         id: `clip-media-${clip.id}`,
@@ -239,7 +239,7 @@ export function continuityWarnings(input: {
       });
     }
     const clipEnd = clip.startMs + Math.max(0, clip.outMs - clip.inMs);
-    if (AUDIO_TRACKS.has(clip.track) && pictureEnd > 0 && clipEnd > pictureEnd + 250) {
+    if (TIMED_TRACKS.has(clip.track) && pictureEnd > 0 && clipEnd > pictureEnd + 250) {
       warnings.push({
         ...blank,
         id: `overrun-${clip.id}`,

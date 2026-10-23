@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SequencePlayer } from "@/components/timeline/SequencePlayer";
+import { TimelinePreview } from "@/components/timeline/TimelinePreview";
 import { useStudio } from "@/lib/studio";
 
 const buttonClass = "h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent";
@@ -264,7 +264,19 @@ export function SceneDetail() {
             <button type="button" className={buttonClass} onClick={() => setConfirmDelete(true)}>Delete scene</button>
           )}
           <button type="button" className={buttonClass} onClick={() => { setNote("Noted for animation. No animation tool is connected."); studio.recordNote("Scene noted for animation. No animation tool is connected."); }}>Send to animation</button>
-          <button type="button" className={buttonClass} onClick={() => { setNote("Noted for music and audio. No mix engine is connected."); studio.recordNote("Scene noted for audio. No mix engine is connected."); }}>Send to Music & Audio</button>
+          <button
+            type="button"
+            className={buttonClass}
+            onClick={() => {
+              const placed = studio.placeScene(scene.id);
+              studio.setAssetCategory("music");
+              studio.setSelectedAudioTrack("music");
+              setNote(placed || "Scene recordings were placed on the shared timeline. Open Audio to mix them.");
+              studio.recordNote(placed || "Scene recordings were placed on the shared timeline for Audio.");
+            }}
+          >
+            Send to Music & Audio
+          </button>
         </div>
         {note ? <p className="mt-3 text-sm text-muted">{note}</p> : null}
       </article>
@@ -312,6 +324,15 @@ export function ContinuityBoard() {
               ) : null}
               {warning.kind === "clip-take" || warning.kind === "clip-media" ? (
                 <button type="button" className={buttonClass} onClick={() => studio.deleteClip(warning.clipId)}>Remove clip</button>
+              ) : null}
+              {warning.kind === "unapproved-scene" ? (
+                <>
+                  <button type="button" className={buttonClass} onClick={() => studio.approveScene(warning.sceneId)}>Approve scene</button>
+                  <button type="button" className={buttonClass} onClick={() => studio.removeSceneClips(warning.sceneId)}>Remove scene clips</button>
+                </>
+              ) : null}
+              {warning.kind === "audio-overrun" ? (
+                <button type="button" className={buttonClass} onClick={() => studio.fitClipToPicture(warning.clipId)}>Trim to picture</button>
               ) : null}
             </div>
           </li>
@@ -403,11 +424,11 @@ export function CueBoard() {
           ))}
         </ul>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" className={buttonClass} onClick={() => { setNote("No beat grid is connected. Cues were not moved."); studio.recordNote("Align to beat was not run. No audio engine is connected."); }}>Align to beat</button>
-          <button type="button" className={buttonClass} onClick={() => { setNote("The shared timeline plays in Edit and Audio. This cue list does not start a separate mix."); studio.recordNote("Cue preview stayed on the shared timeline."); }}>Preview full sequence</button>
+          <button type="button" className={buttonClass} onClick={() => { setNote("No beat grid is connected. Cues were not moved."); studio.recordNote("Align to beat was not run. No beat grid is connected."); }}>Align to beat</button>
           <button type="button" className={buttonClass} onClick={() => { setNote("Cue map saved on this device."); studio.saveLocal(); }}>Save cue map</button>
         </div>
         {note ? <p className="mt-3 text-sm text-muted">{note}</p> : null}
+        <TimelinePreview caption="This plays the shared timeline, including music and dialogue that are already placed. It is not a separate mix." />
       </article>
     </div>
   );
@@ -425,10 +446,7 @@ export function AssemblyBoard() {
         <article className="rounded-[10px] bg-card px-5 py-4">
           <h2 className="m-0 text-base font-bold">Final Assembly Preview</h2>
           {studio.clips.length > 0 ? (
-            <div className="mt-4">
-              <SequencePlayer clips={studio.clips} mix={studio.mix} playheadMs={studio.playheadMs} playing={false} seekRevision={0} onPlayhead={() => undefined} onPlaying={() => undefined} />
-              <p className="mt-3 text-sm text-muted">This is the shared timeline paused at the stored playhead. Transitions are not rendered until you export an MP4.</p>
-            </div>
+            <TimelinePreview caption="Playback follows the shared timeline. Transitions are part of the MP4 only after you export." />
           ) : (
             <div className="mt-4 grid min-h-[220px] place-items-center rounded-[9px] bg-[#37456d] p-4 text-center text-[#f1f6ff]">
               The timeline has no clips. No cut has been rendered.

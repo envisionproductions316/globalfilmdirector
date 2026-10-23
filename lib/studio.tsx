@@ -16,20 +16,33 @@ import {
   completeClip,
   completeMix,
   defaultMix,
-  moveClip,
-  nudgeClip,
+  fitGroupToPicture,
+  moveGroup,
+  nudgeGroup,
   resolveTrack,
-  splitClip,
-  trimClip,
+  splitGroup,
+  trimGroup,
   type AssetRecord,
   type TimelineClip,
   type TrackId,
   type TrackMix,
 } from "@/lib/timeline";
+import type { CaptionCue } from "@/lib/captions";
 
 export type ThemeName = "night" | "day";
+export type StudioMode = "director" | "studio";
+export type AssetCategory = "media" | "characters" | "locations" | "scenes" | "music" | "sfx" | "styles" | "assets";
 export type ProductionStatus = "Draft" | "In review" | "Approved";
 export type AnimationStyle = "Unassigned" | "Realistic" | "Stylized" | "Limited" | "Graphic";
+export type CapturePrefs = {
+  tab: "face" | "body" | "voice" | "style";
+  motionStrength: number;
+  smoothing: number;
+  exaggeration: number;
+  captureBlend: number;
+  keepFacialExpressions: boolean;
+};
+export type CaptureAction = "" | "retake" | "add-to-timeline";
 
 export type PlanItem = {
   id: string;
@@ -170,6 +183,10 @@ export type ConnectorRecord = {
 type StudioState = {
   schemaVersion: 3;
   theme: ThemeName;
+  studioMode: StudioMode;
+  assetCategory: AssetCategory;
+  capturePrefs: CapturePrefs;
+  captureAction: CaptureAction;
   projects: ProjectRecord[];
   activeProjectId: string;
   notices: Notice[];
@@ -193,6 +210,26 @@ type StudioState = {
   selectedConnectorId: string;
   connectorFilter: string;
 };
+
+export const DEFAULT_CAPTURE_PREFS: CapturePrefs = {
+  tab: "body",
+  motionStrength: 100,
+  smoothing: 75,
+  exaggeration: 120,
+  captureBlend: 70,
+  keepFacialExpressions: true,
+};
+
+export const ASSET_CATEGORIES: { id: AssetCategory; label: string; href: string }[] = [
+  { id: "media", label: "Media Library", href: "/edit" },
+  { id: "characters", label: "Characters", href: "/characters" },
+  { id: "locations", label: "Locations", href: "/locations" },
+  { id: "scenes", label: "Scenes", href: "/storyboard" },
+  { id: "music", label: "Music", href: "/audio" },
+  { id: "sfx", label: "Sound Effects", href: "/audio" },
+  { id: "styles", label: "Visual Styles", href: "/characters" },
+  { id: "assets", label: "My Assets", href: "/edit" },
+];
 
 type LegacyState = Partial<StudioState> & {
   status?: ProductionStatus;
@@ -228,15 +265,15 @@ export const CONNECTORS: ConnectorRecord[] = [
 ];
 
 export const DESTINATIONS = [
-  { href: "/projects", label: "Projects" },
-  { href: "/director", label: "Director" },
-  { href: "/characters", label: "Characters" },
-  { href: "/capture", label: "Capture" },
-  { href: "/storyboard", label: "Storyboard" },
-  { href: "/edit", label: "Edit" },
-  { href: "/audio", label: "Audio" },
-  { href: "/export", label: "Export" },
-  { href: "/connectors", label: "Connectors" },
+  { href: "/projects", label: "Projects", icon: "P" },
+  { href: "/director", label: "Chat", icon: "C" },
+  { href: "/characters", label: "Characters", icon: "A" },
+  { href: "/locations", label: "Locations", icon: "L" },
+  { href: "/capture", label: "Capture", icon: "V" },
+  { href: "/storyboard", label: "Storyboard", icon: "S" },
+  { href: "/edit", label: "Edit", icon: "E" },
+  { href: "/audio", label: "Audio", icon: "M" },
+  { href: "/export", label: "Export", icon: "X" },
 ] as const;
 
 function defaultPlan(): PlanItem[] {
@@ -386,6 +423,10 @@ const STARTER_CHARACTERS: CharacterRecord[] = [
 const INITIAL: StudioState = {
   schemaVersion: 3,
   theme: "night",
+  studioMode: "director",
+  assetCategory: "characters",
+  capturePrefs: DEFAULT_CAPTURE_PREFS,
+  captureAction: "",
   projects: [blankProject("p1", "Untitled production", "Feature", "Make the scene more cinematic.")],
   activeProjectId: "p1",
   notices: [{ id: "n1", text: "Saved on this device. No cloud service is connected." }],
@@ -534,9 +575,24 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
   }
 
   const theme = stored.theme === "day" || stored.theme === "night" ? stored.theme : base.theme;
+  const studioMode = stored.studioMode === "studio" ? "studio" : "director";
+  const assetCategory = ASSET_CATEGORIES.some((item) => item.id === stored.assetCategory) ? (stored.assetCategory as AssetCategory) : base.assetCategory;
+  const prefs = (stored.capturePrefs || {}) as Partial<CapturePrefs>;
+  const capturePrefs: CapturePrefs = {
+    tab: prefs.tab === "face" || prefs.tab === "voice" || prefs.tab === "style" || prefs.tab === "body" ? prefs.tab : DEFAULT_CAPTURE_PREFS.tab,
+    motionStrength: Math.min(200, Math.max(0, typeof prefs.motionStrength === "number" ? prefs.motionStrength : DEFAULT_CAPTURE_PREFS.motionStrength)),
+    smoothing: Math.min(100, Math.max(0, typeof prefs.smoothing === "number" ? prefs.smoothing : DEFAULT_CAPTURE_PREFS.smoothing)),
+    exaggeration: Math.min(200, Math.max(0, typeof prefs.exaggeration === "number" ? prefs.exaggeration : DEFAULT_CAPTURE_PREFS.exaggeration)),
+    captureBlend: Math.min(100, Math.max(0, typeof prefs.captureBlend === "number" ? prefs.captureBlend : DEFAULT_CAPTURE_PREFS.captureBlend)),
+    keepFacialExpressions: typeof prefs.keepFacialExpressions === "boolean" ? prefs.keepFacialExpressions : DEFAULT_CAPTURE_PREFS.keepFacialExpressions,
+  };
   return {
     schemaVersion: 3,
     theme,
+    studioMode,
+    assetCategory,
+    capturePrefs,
+    captureAction: "",
     projects,
     activeProjectId,
     notices: Array.isArray(stored.notices) && stored.notices.length > 0 ? stored.notices : base.notices,
@@ -549,7 +605,10 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
     scenes,
     selectedSceneId: stored.selectedSceneId || scenes.find((scene) => scene.projectId === activeProjectId)?.id || "",
     takes,
-    selectedTakeId: stored.selectedTakeId || takes.find((take) => take.projectId === activeProjectId)?.id || "",
+    selectedTakeId:
+      (stored.selectedTakeId && takes.some((take) => take.id === stored.selectedTakeId) ? stored.selectedTakeId : "") ||
+      takes.find((take) => take.projectId === activeProjectId && take.characterId === (stored.selectedCharacterId || base.selectedCharacterId))?.id ||
+      "",
     clips,
     assets,
     mixes,
@@ -565,6 +624,10 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
 type StudioContextValue = {
   ready: boolean;
   theme: ThemeName;
+  studioMode: StudioMode;
+  assetCategory: AssetCategory;
+  capturePrefs: CapturePrefs;
+  captureAction: CaptureAction;
   projects: ProjectRecord[];
   activeProjectId: string;
   activeProject: ProjectRecord;
@@ -604,6 +667,11 @@ type StudioContextValue = {
   messages: DirectorMessage[];
   plan: PlanItem[];
   setTheme: (theme: ThemeName) => void;
+  setStudioMode: (mode: StudioMode) => void;
+  setAssetCategory: (category: AssetCategory) => void;
+  setCapturePrefs: (patch: Partial<CapturePrefs>) => void;
+  requestCaptureAction: (action: CaptureAction) => void;
+  clearCaptureAction: () => void;
   setActiveProjectId: (id: string) => void;
   setStatus: (status: ProductionStatus) => void;
   setAccountName: (name: string) => void;
@@ -638,7 +706,7 @@ type StudioContextValue = {
   markSceneNeedsReview: (id: string) => void;
   removeSceneCharacter: (sceneId: string, characterId: string) => void;
   selectTake: (id: string) => void;
-  saveTake: (draft: TakeDraft) => Promise<string | null>;
+  saveTake: (draft: TakeDraft) => Promise<{ error: string | null; takeId: string }>;
   updateTake: (id: string, patch: Partial<Pick<TakeRecord, "name" | "notes" | "dialogue" | "sceneId" | "shotId" | "approval" | "characterId">>) => void;
   deleteTake: (id: string, force?: boolean) => Promise<string | null>;
   deleteAsset: (id: string, force?: boolean) => Promise<string | null>;
@@ -661,6 +729,10 @@ type StudioContextValue = {
   trimTimelineClip: (id: string, edge: "in" | "out", sourceMs: number) => void;
   splitTimelineClip: (id: string, playheadMs: number) => string | null;
   nudgeTimelineClip: (id: string, direction: -1 | 1) => void;
+  unlinkClip: (id: string) => void;
+  fitClipToPicture: (id: string) => void;
+  importCaptions: (name: string, cues: CaptionCue[]) => string | null;
+  removeSceneClips: (sceneId: string) => void;
   deleteClip: (id: string) => void;
   setTrackMix: (track: TrackId, patch: Partial<Pick<TrackMix, "muted" | "solo" | "volume">>) => void;
   setPlayhead: (ms: number) => void;
@@ -737,7 +809,9 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     const selectedCharacter = characters.find((character) => character.id === state.selectedCharacterId) ?? characters[0];
     const selectedShot = shots.find((shot) => shot.id === state.selectedShotId) ?? shots[0];
     const selectedScene = scenes.find((scene) => scene.id === state.selectedSceneId) ?? scenes[0];
-    const selectedTake = takes.find((take) => take.id === state.selectedTakeId) ?? takes.find((take) => take.characterId === selectedCharacter?.id);
+    const selectedTake =
+      takes.find((take) => take.id === state.selectedTakeId && (!selectedCharacter || take.characterId === selectedCharacter.id)) ??
+      takes.find((take) => take.characterId === selectedCharacter?.id);
     const selectedClip = clips.find((clip) => clip.id === state.selectedClipId);
     const warnings = continuityWarnings({
       projectId: activeProject.id,
@@ -761,6 +835,10 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     return {
       ready,
       theme: state.theme,
+      studioMode: state.studioMode,
+      assetCategory: state.assetCategory,
+      capturePrefs: state.capturePrefs,
+      captureAction: state.captureAction,
       projects: state.projects,
       activeProjectId: activeProject.id,
       activeProject,
@@ -777,7 +855,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       selectedSceneId: selectedScene?.id ?? "",
       selectedScene,
       takes,
-      selectedTakeId: selectedTake?.id ?? "",
+      selectedTakeId: state.selectedTakeId && takes.some((take) => take.id === state.selectedTakeId) ? state.selectedTakeId : "",
       selectedTake,
       clips,
       assets,
@@ -800,6 +878,11 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       messages: activeProject.messages,
       plan: activeProject.plan,
       setTheme: (theme) => setState((current) => ({ ...current, theme })),
+      setStudioMode: (mode) => setState((current) => ({ ...current, studioMode: mode })),
+      setAssetCategory: (category) => setState((current) => ({ ...current, assetCategory: category })),
+      setCapturePrefs: (patch) => setState((current) => ({ ...current, capturePrefs: { ...current.capturePrefs, ...patch } })),
+      requestCaptureAction: (action) => setState((current) => ({ ...current, captureAction: action })),
+      clearCaptureAction: () => setState((current) => ({ ...current, captureAction: "" })),
       setActiveProjectId: (id) => setState((current) => ({ ...current, activeProjectId: id, editorOpen: false })),
       setStatus: (status) => updateActive({ status }),
       setAccountName: (name) => setState((current) => ({ ...current, accountName: name })),
@@ -918,8 +1001,26 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           ),
           notices: withNotice(current.notices, "Production plan approved on this device. No assistant generated it."),
         })),
-      selectCharacter: (id) => setState((current) => ({ ...current, selectedCharacterId: id })),
-      openCharacter: (id) => setState((current) => ({ ...current, selectedCharacterId: id, editorOpen: true })),
+      selectCharacter: (id) =>
+        setState((current) => {
+          const keep =
+            current.selectedTakeId &&
+            current.takes.some((take) => take.id === current.selectedTakeId && take.characterId === id && take.projectId === current.activeProjectId)
+              ? current.selectedTakeId
+              : "";
+          const fallback = current.takes.find((take) => take.characterId === id && take.projectId === current.activeProjectId)?.id || "";
+          return { ...current, selectedCharacterId: id, selectedTakeId: keep || fallback };
+        }),
+      openCharacter: (id) =>
+        setState((current) => {
+          const keep =
+            current.selectedTakeId &&
+            current.takes.some((take) => take.id === current.selectedTakeId && take.characterId === id && take.projectId === current.activeProjectId)
+              ? current.selectedTakeId
+              : "";
+          const fallback = current.takes.find((take) => take.characterId === id && take.projectId === current.activeProjectId)?.id || "";
+          return { ...current, selectedCharacterId: id, selectedTakeId: keep || fallback, editorOpen: true };
+        }),
       closeEditor: () => setState((current) => ({ ...current, editorOpen: false })),
       updateCharacter: (id, patch) =>
         setState((current) => ({
@@ -962,12 +1063,27 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         return null;
       },
       deleteCharacter: (id) =>
-        setState((current) => ({
-          ...current,
-          characters: current.characters.filter((character) => character.id !== id),
-          editorOpen: current.selectedCharacterId === id ? false : current.editorOpen,
-          notices: withNotice(current.notices, "Character deleted from this project on this device."),
-        })),
+        setState((current) => {
+          const characters = current.characters.filter((character) => character.id !== id);
+          const nextCharacterId =
+            current.selectedCharacterId === id
+              ? characters.find((character) => character.projectId === current.activeProjectId)?.id || ""
+              : current.selectedCharacterId;
+          const keepTake =
+            current.selectedTakeId &&
+            current.takes.some((take) => take.id === current.selectedTakeId && take.characterId !== id)
+              ? current.selectedTakeId
+              : "";
+          const fallbackTake = current.takes.find((take) => take.characterId === nextCharacterId && take.projectId === current.activeProjectId)?.id || "";
+          return {
+            ...current,
+            characters,
+            selectedCharacterId: nextCharacterId,
+            selectedTakeId: keepTake || fallbackTake,
+            editorOpen: current.selectedCharacterId === id ? false : current.editorOpen,
+            notices: withNotice(current.notices, "Character deleted from this project on this device."),
+          };
+        }),
       selectShot: (id) => setState((current) => ({ ...current, selectedShotId: id })),
       addShot: () =>
         setState((current) => {
@@ -1097,10 +1213,21 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             scene.id === sceneId ? { ...scene, characterIds: scene.characterIds.filter((id) => id !== characterId) } : scene,
           ),
         })),
-      selectTake: (id) => setState((current) => ({ ...current, selectedTakeId: id })),
+      selectTake: (id) =>
+        setState((current) => {
+          const take = current.takes.find((item) => item.id === id);
+          if (!take) return { ...current, selectedTakeId: id };
+          return {
+            ...current,
+            selectedTakeId: id,
+            selectedCharacterId: take.characterId || current.selectedCharacterId,
+            selectedSceneId: take.sceneId || current.selectedSceneId,
+            selectedShotId: take.shotId || current.selectedShotId,
+          };
+        }),
       saveTake: async (draft) => {
-        if (!draft.characterId) return "Select a character before saving a take.";
-        if (!draft.blob || draft.blob.size === 0) return "Record a performance before saving.";
+        if (!draft.characterId) return { error: "Select a character before saving a take.", takeId: "" };
+        if (!draft.blob || draft.blob.size === 0) return { error: "Record a performance before saving.", takeId: "" };
         const id = crypto.randomUUID();
         const mediaId = crypto.randomUUID();
         const createdAt = new Date().toISOString();
@@ -1115,7 +1242,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             createdAt,
           });
         } catch (error) {
-          return storageError(error);
+          return { error: storageError(error), takeId: "" };
         }
         setState((current) => {
           const character = current.characters.find((item) => item.id === draft.characterId);
@@ -1160,7 +1287,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           };
         });
         await refreshMedia();
-        return null;
+        return { error: null, takeId: id };
       },
       updateTake: (id, patch) =>
         setState((current) => ({
@@ -1181,11 +1308,20 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             setState((current) => ({ ...current, notices: withNotice(current.notices, "The take was removed. The recording file could not be deleted.") }));
           }
         }
-        setState((current) => ({
-          ...current,
-          takes: current.takes.filter((item) => item.id !== id),
-          notices: withNotice(current.notices, "Take deleted from this character on this device. Timeline clips were left in place."),
-        }));
+        setState((current) => {
+          const deleted = current.takes.find((item) => item.id === id);
+          const remaining = current.takes.filter((item) => item.id !== id);
+          const nextTake =
+            current.selectedTakeId === id
+              ? remaining.find((item) => item.characterId === deleted?.characterId && item.projectId === current.activeProjectId)?.id || ""
+              : current.selectedTakeId;
+          return {
+            ...current,
+            takes: remaining,
+            selectedTakeId: nextTake && remaining.some((item) => item.id === nextTake) ? nextTake : "",
+            notices: withNotice(current.notices, "Take deleted from this character on this device. Timeline clips were left in place."),
+          };
+        });
         await refreshMedia();
         return null;
       },
@@ -1373,47 +1509,86 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             hasVideo: take ? take.hasVideo : Boolean(asset?.hasVideo),
             hasAudio: take ? take.hasAudio || take.hasVideo : asset ? asset.hasAudio || asset.hasVideo : true,
           };
-          const moved = moveClip(clip, startMs, track, shape);
-          if (!moved) {
-            error = "That track cannot hold this clip. Character motion and captions stay empty.";
+          const moved = moveGroup(current.clips, id, startMs, track, shape);
+          if (moved.error) {
+            error = moved.error;
             return current;
           }
           error = null;
-          return { ...current, selectedClipId: id, clips: current.clips.map((item) => (item.id === id ? moved : item)) };
+          return { ...current, selectedClipId: id, clips: moved.clips };
         });
         return error;
       },
       trimTimelineClip: (id, edge, sourceMs) =>
-        setState((current) => ({
-          ...current,
-          clips: current.clips.map((clip) => {
-            if (clip.id !== id || !Number.isFinite(sourceMs)) return clip;
-            const take = current.takes.find((item) => item.mediaId === clip.mediaId);
-            const asset = current.assets.find((item) => item.id === clip.mediaId);
-            const mediaDuration = take?.durationMs || asset?.durationMs || clip.outMs;
-            return trimClip(clip, edge, sourceMs, mediaDuration);
-          }),
-        })),
+        setState((current) => {
+          const clip = current.clips.find((item) => item.id === id);
+          const take = current.takes.find((item) => item.mediaId === clip?.mediaId);
+          const asset = current.assets.find((item) => item.id === clip?.mediaId);
+          const mediaDuration = take?.durationMs || asset?.durationMs || clip?.outMs || sourceMs;
+          return { ...current, clips: trimGroup(current.clips, id, edge, sourceMs, mediaDuration) };
+        }),
       splitTimelineClip: (id, playheadMs) => {
         let error: string | null = "The playhead is not inside this clip.";
         setState((current) => {
-          const clip = current.clips.find((item) => item.id === id);
-          if (!clip) return current;
-          const parts = splitClip(clip, playheadMs, crypto.randomUUID());
+          const parts = splitGroup(current.clips, id, playheadMs, [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()]);
           if (!parts) return current;
           error = null;
-          return {
-            ...current,
-            selectedClipId: parts[1].id,
-            clips: current.clips.flatMap((item) => (item.id === id ? parts : [item])),
-          };
+          const created = parts.find((clip) => clip.name.endsWith(" split") && clip.groupId);
+          return { ...current, selectedClipId: created?.id || id, clips: parts };
         });
         return error;
       },
       nudgeTimelineClip: (id, direction) =>
         setState((current) => ({
           ...current,
-          clips: nudgeClip(current.clips, id, direction),
+          clips: nudgeGroup(current.clips, id, direction),
+        })),
+      unlinkClip: (id) =>
+        setState((current) => ({
+          ...current,
+          clips: current.clips.map((clip) => (clip.id === id ? { ...clip, groupId: "" } : clip)),
+        })),
+      fitClipToPicture: (id) =>
+        setState((current) => ({
+          ...current,
+          clips: fitGroupToPicture(current.clips, id),
+          notices: withNotice(current.notices, "The clip was trimmed to the picture. The source file was kept."),
+        })),
+      importCaptions: (name, cues) => {
+        if (cues.length === 0) return "That file has no readable captions.";
+        setState((current) => ({
+          ...current,
+          selectedClipId: "",
+          clips: [
+            ...current.clips,
+            ...cues.map((cue) => {
+              const id = crypto.randomUUID();
+              return completeClip(
+                {
+                  id,
+                  projectId: current.activeProjectId,
+                  track: "captions",
+                  mediaId: `caption:${id}`,
+                  name: name.replace(/\.(srt|vtt)$/i, ""),
+                  text: cue.text,
+                  startMs: cue.startMs,
+                  inMs: 0,
+                  outMs: cue.endMs - cue.startMs,
+                  sceneId: current.selectedSceneId,
+                },
+                current.activeProjectId,
+              );
+            }).filter((clip): clip is TimelineClip => Boolean(clip)),
+          ],
+          notices: withNotice(current.notices, `${cues.length} caption${cues.length === 1 ? "" : "s"} from ${name} are on the timeline. They were not generated.`),
+        }));
+        return null;
+      },
+      removeSceneClips: (sceneId) =>
+        setState((current) => ({
+          ...current,
+          clips: current.clips.filter((clip) => clip.sceneId !== sceneId),
+          notices: withNotice(current.notices, "Clips for that scene were removed from the timeline. Source files were kept."),
         })),
       deleteClip: (id) =>
         setState((current) => ({

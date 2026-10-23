@@ -65,7 +65,7 @@ export function CharacterProfile({ character }: { character: CharacterRecord }) 
         </select>
       </label>
       <fieldset className="mt-3">
-        <legend className="text-xs text-muted">Scene assignments</legend>
+        <legend className="text-xs text-muted">Shot assignments</legend>
         <div className="mt-2 flex flex-col gap-2">
           {studio.shots.map((shot) => (
             <label key={shot.id} className="flex items-center gap-2 text-sm">

@@ -47,7 +47,7 @@ export function ExportControl() {
     try {
       const form = new FormData();
       form.set("manifest", JSON.stringify({ title: studio.activeProject.title, clips: studio.clips, mix: studio.mix }));
-      const ids = [...new Set(studio.clips.map((clip) => clip.mediaId))];
+      const ids = [...new Set(studio.clips.filter((clip) => clip.track !== "captions").map((clip) => clip.mediaId))];
       for (const id of ids) {
         const record = await getMedia(id);
         if (!record) {
@@ -122,10 +122,23 @@ export function ExportControl() {
 }
 
 async function poll(id: string) {
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+  for (let attempt = 0; attempt < 360; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 500));
     const response = await fetch(`/api/export?id=${encodeURIComponent(id)}`);
-    const body = (await response.json()) as { status: "running" | "done" | "error" | "cancelled"; error: string; probedDuration: number; videoCodec: string; audioCodec: string; bytes: number; progress: number };
+    const body = (await response.json().catch(() => null)) as
+      | { status: "running" | "done" | "error" | "cancelled"; error: string; probedDuration: number; videoCodec: string; audioCodec: string; bytes: number; progress: number }
+      | null;
+    if (!response.ok || !body) {
+      return {
+        status: "error" as const,
+        error: body?.error || `Export status failed (${response.status}). The encode may still be running after a server restart.`,
+        probedDuration: 0,
+        videoCodec: "",
+        audioCodec: "",
+        bytes: 0,
+        progress: 0,
+      };
+    }
     if (body.status === "running") continue;
     return body;
   }

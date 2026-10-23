@@ -53,7 +53,7 @@ export function ConnectorsWorkspace() {
                 <h3 className="m-0 text-base font-bold text-ink">{item.name}</h3>
                 <p className="m-0 flex-1 text-xs text-muted">{item.detail}</p>
                 <button type="button" className="h-9 rounded-[7px] bg-accent text-xs font-bold text-on-accent" onClick={() => { studio.selectConnector(item.id); setView("Detail"); }}>
-                  View & connect
+                  View details
                 </button>
               </article>
             ))}

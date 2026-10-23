@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { CharacterProfile } from "@/components/characters/CharacterProfile";
@@ -124,12 +125,125 @@ export function ContextPanel() {
 
       {pathname === "/capture" ? (
         <>
-          <h2 className="m-0 text-base font-bold">Camera</h2>
-          <p className="mt-3 text-sm">Mode: Camera capture</p>
-          <p className="mt-2 text-[13px] text-muted">Starting the camera does not retarget motion onto a character. Recordings are raw video stored on this device.</p>
-          <p className="mt-3 text-sm">Project: {studio.activeProject.title}</p>
-          <p className="mt-2 text-sm">Preview character: {character ? character.name : "None"}</p>
-          <p className="mt-2 text-sm">Takes for this character: {studio.takes.filter((take) => take.characterId === character?.id).length}</p>
+          <h2 className="m-0 text-base font-bold">Performance Controls</h2>
+          <div className="mt-3 flex flex-wrap gap-1">
+            {(["face", "body", "voice", "style"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                className={`rounded-md px-2 py-1 text-xs capitalize ${studio.capturePrefs.tab === tab ? "bg-active text-ink" : "bg-inset text-muted"}`}
+                onClick={() => studio.setCapturePrefs({ tab })}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          {studio.capturePrefs.tab === "body" ? (
+            <div className="mt-3 space-y-3">
+              <label className="block text-xs text-muted">
+                Motion Strength {studio.capturePrefs.motionStrength}%
+                <input className="mt-1 w-full" type="range" min={0} max={200} value={studio.capturePrefs.motionStrength} onChange={(event) => studio.setCapturePrefs({ motionStrength: Number(event.target.value) })} />
+              </label>
+              <label className="block text-xs text-muted">
+                Smoothing {studio.capturePrefs.smoothing}%
+                <input className="mt-1 w-full" type="range" min={0} max={100} value={studio.capturePrefs.smoothing} onChange={(event) => studio.setCapturePrefs({ smoothing: Number(event.target.value) })} />
+              </label>
+              <label className="block text-xs text-muted">
+                Exaggeration {studio.capturePrefs.exaggeration}%
+                <input className="mt-1 w-full" type="range" min={0} max={200} value={studio.capturePrefs.exaggeration} onChange={(event) => studio.setCapturePrefs({ exaggeration: Number(event.target.value) })} />
+              </label>
+              <p className="text-[12px] text-muted">These preferences are stored on this device. They do not drive a retargeter.</p>
+            </div>
+          ) : (
+            <p className="mt-3 text-[13px] text-muted">
+              {studio.capturePrefs.tab === "face"
+                ? "Face controls need MediaPipe, which is not installed."
+                : studio.capturePrefs.tab === "voice"
+                  ? "Voice transform is not connected. The microphone records raw audio only."
+                  : "Visual style comes from the character passport. No AI style engine is connected."}
+            </p>
+          )}
+
+          {studio.capturePrefs.tab === "style" && character ? (
+            <label className="mt-3 flex flex-col gap-1 text-xs text-muted">
+              Animation style
+              <select
+                className={fieldClass}
+                value={character.animationStyle}
+                onChange={(event) => studio.updateCharacter(character.id, { animationStyle: event.target.value as typeof character.animationStyle })}
+              >
+                {["Unassigned", "Realistic", "Stylized", "Limited", "Graphic"].map((style) => (
+                  <option key={style}>{style}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <h3 className="mt-5 text-sm font-bold">Character Actions</h3>
+          <div className="mt-2 grid gap-2">
+            <p className="m-0 text-[13px] text-muted">Preview character: {character ? character.name : "None"} · {studio.takes.filter((take) => take.characterId === character?.id).length} takes</p>
+            <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-left text-sm" data-testid="tools-retake" onClick={() => studio.requestCaptureAction("retake")}>Retake Performance</button>
+            <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-left text-sm text-muted" disabled>Apply to Selected Shots · Not available</button>
+            <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-left text-sm text-muted" disabled>Copy to Other Characters · Not available</button>
+            <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-left text-sm text-muted" disabled>Save as Motion Style · Not available</button>
+            <button
+              type="button"
+              className="h-10 rounded-[7px] bg-accent px-3 text-left text-sm font-bold text-on-accent"
+              data-testid="tools-add-timeline"
+              onClick={() => studio.requestCaptureAction("add-to-timeline")}
+            >
+              Add to Timeline
+            </button>
+          </div>
+
+          <h3 className="mt-5 text-sm font-bold">Scene Tools</h3>
+          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+            {["Split", "Trim", "Ripple", "Speed"].map((label) => (
+              <button key={label} type="button" className="h-9 rounded-[7px] bg-inset px-2 text-muted" disabled title="Open Edit for timeline tools">
+                {label}
+              </button>
+            ))}
+          </div>
+          <Link href="/edit" className="mt-2 block text-xs text-accent">Open Edit for Split / Trim</Link>
+
+          <h3 className="mt-5 text-sm font-bold">AI Tools</h3>
+          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+            {["Fix Lip Sync", "Regenerate Motion", "Change Expression", "Apply to Similar"].map((label) => (
+              <button key={label} type="button" className="h-9 rounded-[7px] bg-inset px-2 text-muted" disabled>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[12px] text-muted">AI tools are not connected.</p>
+
+          <h3 className="mt-5 text-sm font-bold">Camera Tools</h3>
+          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+            {["Auto Frame", "Set Angle", "Depth of Field", "Camera Move"].map((label) => (
+              <button key={label} type="button" className="h-9 rounded-[7px] bg-inset px-2 text-muted" disabled>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[12px] text-muted">Camera tools are not connected. Device camera controls are on the Capture stage.</p>
+          <p className="mt-3 text-[13px] text-muted">Project: {studio.activeProject.title}. Recordings stay on this device.</p>
+        </>
+      ) : null}
+
+      {pathname === "/locations" ? (
+        <>
+          <h2 className="m-0 text-base font-bold">Locations</h2>
+          <p className="mt-3 text-sm text-muted">Places used by scenes in {studio.activeProject.title}. Edit location fields on Storyboard scenes.</p>
+          <ul className="mt-3 list-none space-y-2 p-0 text-sm">
+            {studio.scenes.map((scene) => (
+              <li key={scene.id} className="rounded-[9px] bg-inset px-3 py-2">
+                <strong className="block">{scene.location || scene.world || "Unspecified"}</strong>
+                <span className="text-xs text-muted">{scene.title} · {scene.timeOfDay}</span>
+              </li>
+            ))}
+          </ul>
+          <Link href="/storyboard" className="mt-3 block text-sm text-accent" onClick={() => studio.setAssetCategory("scenes")}>
+            Open Storyboard
+          </Link>
         </>
       ) : null}
 

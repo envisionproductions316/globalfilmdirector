@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { SequencePlayer } from "@/components/timeline/SequencePlayer";
 import { Waveform } from "@/components/timeline/Waveform";
 import { useStudio } from "@/lib/studio";
+import { parseCaptions } from "@/lib/captions";
 import { importAllowed } from "@/lib/timeline";
 import {
   clipSpan,
@@ -39,6 +40,24 @@ function readMediaFile(file: File) {
     };
     element.src = url;
   });
+}
+
+async function fileHasAudio(file: File) {
+  if (file.type.startsWith("audio/")) return true;
+  const size = file.size;
+  const slices = size <= 8_000_000 ? [file] : [file.slice(0, 1_000_000), file.slice(size - 1_000_000)];
+  const decoded = new TextDecoder("latin1").decode(await new Blob(slices).arrayBuffer());
+  if (/mp4a|OpusHead|A_OPUS|A_VORBIS|sowt|twos|\x00flac/.test(decoded)) return true;
+  if (size > 12_000_000) return false;
+  const context = new AudioContext();
+  try {
+    await context.decodeAudioData(await file.arrayBuffer());
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await context.close().catch(() => undefined);
+  }
 }
 
 export function ProductionTimeline({ mode }: { mode: "edit" | "audio" }) {
@@ -90,14 +109,18 @@ export function ProductionTimeline({ mode }: { mode: "edit" | "audio" }) {
   async function importFiles(files: FileList | null, preferred: TrackId) {
     if (!files?.length) return;
     for (const file of files) {
+      if (/\.(srt|vtt)$/i.test(file.name)) {
+        const cues = parseCaptions(await file.text());
+        setMessage(studio.importCaptions(file.name, cues) || `${cues.length} captions from ${file.name} are on the timeline.`);
+        continue;
+      }
       if (!importAllowed(file.type, file.name)) {
-        setMessage(`${file.name} is not a supported video or audio file.`);
+        setMessage(`${file.name} is not a supported video, audio, or caption file.`);
         continue;
       }
       try {
         const meta = await readMediaFile(file);
-        const hasVideo = meta.hasVideo;
-        const hasAudio = !meta.hasVideo;
+        const hasAudio = meta.hasVideo ? await fileHasAudio(file) : true;
         const track = meta.hasVideo ? "video" : preferred === "video" ? "music" : preferred;
         const error = await studio.saveImportedMedia({
           name: file.name,
@@ -105,7 +128,7 @@ export function ProductionTimeline({ mode }: { mode: "edit" | "audio" }) {
           blob: file,
           durationMs: meta.durationMs,
           hasVideo: meta.hasVideo,
-          hasAudio: meta.hasVideo ? true : hasAudio,
+          hasAudio,
           kind: "import",
           track,
         });
@@ -135,16 +158,18 @@ export function ProductionTimeline({ mode }: { mode: "edit" | "audio" }) {
       rec.onstop = () => {
         stream.getTracks().forEach((track) => track.stop());
         const blob = new Blob(recordChunks.current, { type: rec.mimeType || "audio/webm" });
-        void studio.saveImportedMedia({
+        const elapsed = Math.max(40, Date.now() - recordStarted.current);
+        const file = new File([blob], "narration.webm", { type: blob.type || "audio/webm" });
+        void readMediaFile(file).then((meta) => meta.durationMs).catch(() => elapsed).then((durationMs) => studio.saveImportedMedia({
           name: "Narration",
           mime: blob.type || "audio/webm",
           blob,
-          durationMs: Math.max(40, Date.now() - recordStarted.current),
+          durationMs: Math.max(40, durationMs),
           hasVideo: false,
           hasAudio: true,
           kind: "narration",
           track: "voice",
-        }).then((error) => setMessage(error || "Narration was saved on the lead vocal track. It was not generated speech."));
+        })).then((error) => setMessage(error || "Narration was saved on the lead vocal track. It was not generated speech."));
       };
       rec.start(250);
       setRecording(true);
@@ -197,7 +222,9 @@ export function ProductionTimeline({ mode }: { mode: "edit" | "audio" }) {
     <div>
       <div className="mt-5 grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         <article className="rounded-[10px] bg-card px-4 py-4">
-          <h2 className="m-0 text-base font-bold">{mode === "audio" ? "Audio files" : "Media Library"}</h2>
+          <h2 className="m-0 text-base font-bold">
+            {studio.assetCategory === "assets" ? "My Assets" : mode === "audio" ? "Audio files" : "Media Library"}
+          </h2>
           <div className="mt-3 flex flex-col gap-2">
             <label className="text-xs text-muted">
               Import media
@@ -205,10 +232,16 @@ export function ProductionTimeline({ mode }: { mode: "edit" | "audio" }) {
                 className="mt-1 block w-full text-sm"
                 data-testid={mode === "audio" ? "import-audio" : "import-media"}
                 type="file"
-                accept="video/mp4,video/webm,video/quicktime,audio/mpeg,audio/wav,audio/mp4,audio/webm,audio/ogg,audio/aac,.mp4,.webm,.mov,.mp3,.wav,.m4a,.ogg,.aac"
+                accept="video/mp4,video/webm,video/quicktime,audio/mpeg,audio/wav,audio/mp4,audio/webm,audio/ogg,audio/aac,.mp4,.webm,.mov,.mp3,.wav,.m4a,.ogg,.aac,.srt,.vtt"
                 multiple
                 onChange={(event) => {
-                  void importFiles(event.target.files, mode === "audio" ? "music" : "video");
+                  const preferred =
+                    mode === "audio"
+                      ? studio.selectedAudioTrack === "sfx" || studio.selectedAudioTrack === "dialogue" || studio.selectedAudioTrack === "voice"
+                        ? (studio.selectedAudioTrack as TrackId)
+                        : "music"
+                      : "video";
+                  void importFiles(event.target.files, preferred);
                   event.target.value = "";
                 }}
               />
@@ -220,21 +253,28 @@ export function ProductionTimeline({ mode }: { mode: "edit" | "audio" }) {
             ) : null}
           </div>
           <ul className="mt-3 flex max-h-72 list-none flex-col gap-2 overflow-auto p-0">
-            {studio.takes.map((take) => (
-              <li key={take.id}>
-                <button type="button" className="w-full rounded-[9px] bg-inset px-3 py-2 text-left text-sm" data-testid={`place-take-${take.id}`} onClick={() => setMessage(studio.placeTake(take.id) || `${take.name} was added to the timeline.`)}>
-                  {take.name}
-                  <span className="mt-1 block text-xs text-muted">{formatTimecode(take.durationMs)} · {take.characterId}</span>
-                </button>
-              </li>
-            ))}
+            {studio.assetCategory !== "assets"
+              ? studio.takes.map((take) => (
+                  <li key={take.id}>
+                    <button type="button" className="w-full rounded-[9px] bg-inset px-3 py-2 text-left text-sm" data-testid={`place-take-${take.id}`} onClick={() => setMessage(studio.placeTake(take.id) || `${take.name} was added to the timeline.`)}>
+                      {take.name}
+                      <span className="mt-1 block text-xs text-muted">
+                        {formatTimecode(take.durationMs)} · {studio.characters.find((character) => character.id === take.characterId)?.name || "Character"}
+                      </span>
+                    </button>
+                  </li>
+                ))
+              : null}
             {studio.assets.map((asset) => (
               <li key={asset.id} className="rounded-[9px] bg-inset px-3 py-2 text-sm">
                 {asset.name}
                 <span className="mt-1 block text-xs text-muted">{asset.kind} · {formatTimecode(asset.durationMs)}</span>
+                <button type="button" className="mt-2 text-xs text-muted" onClick={() => { void studio.deleteAsset(asset.id).then((error) => setMessage(error || `${asset.name} was deleted from this device.`)); }}>Delete file</button>
               </li>
             ))}
-            {studio.takes.length === 0 && studio.assets.length === 0 ? <li className="text-sm text-muted">No recordings or imported files in this project.</li> : null}
+            {(studio.assetCategory === "assets" ? studio.assets.length === 0 : studio.takes.length === 0 && studio.assets.length === 0) ? (
+              <li className="text-sm text-muted">{studio.assetCategory === "assets" ? "No imported files in My Assets." : "No recordings or imported files in this project."}</li>
+            ) : null}
           </ul>
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-sm" onClick={() => setMessage(studio.placeScene(studio.selectedSceneId) || "Scene recordings were added.")}>Add scene</button>
@@ -295,20 +335,27 @@ export function ProductionTimeline({ mode }: { mode: "edit" | "audio" }) {
                       ) : null}
                     </div>
                     <div className="relative h-9 rounded bg-inset" data-track={track.id}>
-                      {track.kind === "note" ? <span className="px-2 text-[11px] text-muted">{track.id === "motion" ? "Retargeting is not available." : "No caption file is stored."}</span> : null}
+                      {track.kind === "note" ? <span className="px-2 text-[11px] leading-9 text-muted">Retargeting is not available.</span> : null}
                       {studio.clips.filter((clip) => clip.track === track.id).map((clip) => {
-                        const live = drag?.id === clip.id ? drag : clip;
-                        const left = (live.startMs / 1000) * studio.pixelsPerSecond;
+                        const dragged = drag ? studio.clips.find((item) => item.id === drag.id) : undefined;
+                        const delta = drag && dragged ? drag.startMs - dragged.startMs : 0;
+                        const linked = Boolean(drag && dragged?.groupId && clip.groupId === dragged.groupId);
+                        const startMs = drag?.id === clip.id ? drag.startMs : linked ? clip.startMs + delta : clip.startMs;
+                        const left = (startMs / 1000) * studio.pixelsPerSecond;
                         const clipWidth = Math.max(28, (clipSpan(clip) / 1000) * studio.pixelsPerSecond);
                         return (
                           <div
                             key={clip.id}
                             data-testid={`clip-${clip.id}`}
-                            className={`absolute top-1 h-7 overflow-hidden rounded-sm px-2 text-left text-[11px] leading-7 text-[#f1f6ff] ${clip.id === studio.selectedClipId ? "outline outline-2 outline-[#f1f6ff]" : ""}`}
+                            data-out={clip.outMs}
+                            data-group={clip.groupId}
+                            data-track-id={clip.track}
+                            className={`absolute top-1 flex h-7 items-center overflow-hidden rounded-sm px-2 text-left text-[11px] text-[#f1f6ff] ${clip.id === studio.selectedClipId ? "outline outline-2 outline-[#f1f6ff]" : ""}`}
                             style={{ left, width: clipWidth, background: track.color }}
                             onPointerDown={(event) => onClipPointerDown(event, clip.id)}
                           >
-                            {clip.name}
+                            {track.kind === "audio" ? <span className="pointer-events-none absolute inset-0 opacity-70"><Waveform mediaId={clip.mediaId} compact /></span> : null}
+                            <span className="relative truncate">{clip.text || clip.name}</span>
                           </div>
                         );
                       })}
@@ -322,8 +369,16 @@ export function ProductionTimeline({ mode }: { mode: "edit" | "audio" }) {
         <ul className="mt-3 flex list-none flex-col gap-2 p-0 lg:hidden" data-testid="mobile-clips">
           {studio.clips.map((clip) => (
             <li key={clip.id} className="rounded-[9px] bg-inset px-3 py-3 text-sm">
-              <button type="button" className="font-bold" onClick={() => studio.selectClip(clip.id)}>{clip.name}</button>
+              <button type="button" className="font-bold" onClick={() => studio.selectClip(clip.id)}>{clip.text || clip.name}</button>
               <p className="mt-1 text-xs text-muted">{trackMeta(clip.track).label} · {formatTimecode(clipSpan(clip))} · {clip.characterId || "No character"}</p>
+              <label className="mt-2 block text-xs text-muted">
+                Trim in (ms)
+                <input className="mt-1 w-full rounded-md bg-card px-2 py-2 text-sm" type="number" value={clip.inMs} onChange={(event) => studio.trimTimelineClip(clip.id, "in", Number(event.target.value))} />
+              </label>
+              <label className="mt-2 block text-xs text-muted">
+                Trim out (ms)
+                <input className="mt-1 w-full rounded-md bg-card px-2 py-2 text-sm" type="number" value={clip.outMs} onChange={(event) => studio.trimTimelineClip(clip.id, "out", Number(event.target.value))} />
+              </label>
             </li>
           ))}
           {studio.clips.length === 0 ? <li className="text-sm text-muted">No clips on the timeline.</li> : null}
@@ -363,7 +418,8 @@ export function ProductionTimeline({ mode }: { mode: "edit" | "audio" }) {
             <div className="flex flex-wrap gap-2 md:col-span-2">
               <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-sm" data-testid="nudge-earlier" onClick={() => studio.nudgeTimelineClip(selected.id, -1)}>Earlier</button>
               <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-sm" data-testid="nudge-later" onClick={() => studio.nudgeTimelineClip(selected.id, 1)}>Later</button>
-              <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-sm" data-testid="split-clip" onClick={() => setMessage(studio.splitTimelineClip(selected.id, playhead) || "Clip split at the playhead. The source file was not cut.")}>Split at playhead</button>
+              <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-sm" data-testid="split-clip" onClick={() => setMessage(studio.splitTimelineClip(selected.id, playhead) || "Clip split at the playhead. Linked picture and dialogue stay together. The source file was not cut.")}>Split at playhead</button>
+              {selected.groupId ? <button type="button" className="h-9 rounded-[7px] bg-inset px-3 text-sm" onClick={() => { studio.unlinkClip(selected.id); setMessage("This clip is no longer linked. The other clip stays where it is."); }}>Unlink</button> : null}
               {pendingDelete === selected.id ? (
                 <>
                   <button type="button" className="h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent" data-testid="confirm-remove-clip" onClick={() => { studio.deleteClip(selected.id); setPendingDelete(""); setMessage("Clip removed from the timeline. The source file was kept."); }}>Remove clip</button>
