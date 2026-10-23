@@ -1,8 +1,8 @@
 # Desktop preparation (pre-Electron)
 
-**Status:** Preparation only — **Electron is not implemented yet.**  
+**Status:** Preparation complete — **Electron v1 implemented** (see [`DESKTOP.md`](DESKTOP.md)). Local test package only; **no public installer.**  
 **Locked decisions (2026-10-23):** see §1.  
-**Related:** [`PRE_DESKTOP_AUDIT.md`](PRE_DESKTOP_AUDIT.md), [`DEVELOPER_STATUS.md`](DEVELOPER_STATUS.md), [`MACHINE_TOOLS.md`](MACHINE_TOOLS.md).
+**Related:** [`DESKTOP.md`](DESKTOP.md), [`PRE_DESKTOP_AUDIT.md`](PRE_DESKTOP_AUDIT.md), [`DEVELOPER_STATUS.md`](DEVELOPER_STATUS.md), [`MACHINE_TOOLS.md`](MACHINE_TOOLS.md).
 
 ---
 

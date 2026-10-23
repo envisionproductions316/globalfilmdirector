@@ -2,6 +2,9 @@
   "name": "global-film-director",
   "private": true,
   "version": "0.1.0",
+  "description": "Global Film Director — local film studio",
+  "author": "Envision Productions",
+  "main": "desktop/main.mjs",
   "engines": {
     "node": ">=20"
   },
@@ -12,9 +15,15 @@
     "build": "node scripts/run-next.mjs build",
     "start": "node scripts/start-production.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test lib/continuity.test.ts lib/timeline.test.ts lib/director-apply.test.ts",
+    "test": "node --experimental-strip-types --test lib/continuity.test.ts lib/timeline.test.ts lib/director-apply.test.ts lib/backup.test.ts",
     "check": "node scripts/check-ready.mjs",
-    "ready": "npm run typecheck && npm test && npm run build && npm run check"
+    "ready": "npm run typecheck && npm test && npm run build && npm run check",
+    "desktop": "npm run build && electron .",
+    "desktop:stage": "node scripts/stage-desktop-resources.mjs",
+    "desktop:pack": "npm run build && npm run desktop:stage && electron-builder --win dir --x64 --publish never",
+    "desktop:pack:nsis": "npm run build && npm run desktop:stage && electron-builder --win nsis --x64 --publish never",
+    "desktop:dist": "npm run desktop:pack",
+    "desktop:smoke": "node scripts/desktop-smoke.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.18",
@@ -27,6 +36,8 @@
     "@types/node": "^24.9.1",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12",
     "tailwindcss": "^4.1.16",
     "typescript": "^5.9.3"
   }

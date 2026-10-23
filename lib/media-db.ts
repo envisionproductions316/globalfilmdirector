@@ -82,6 +82,30 @@ export async function listMedia(): Promise<{ ids: string[]; bytes: number }> {
   }
 }
 
+/** Full media rows for backup/restore. */
+export async function listMediaRecords(): Promise<MediaRecord[]> {
+  const db = await openDb();
+  try {
+    return await requestToPromise(db.transaction(STORE, "readonly").objectStore(STORE).getAll() as IDBRequest<MediaRecord[]>);
+  } finally {
+    db.close();
+  }
+}
+
+export async function clearAllMedia() {
+  const db = await openDb();
+  try {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).clear();
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error ?? new Error("Media store could not be cleared."));
+    });
+  } finally {
+    db.close();
+  }
+}
+
 export function storageError(error: unknown) {
   if (error instanceof DOMException && (error.name === "QuotaExceededError" || error.name === "NS_ERROR_DOM_QUOTA_REACHED")) {
     return "This device does not have enough space for the recording.";

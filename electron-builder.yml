@@ -1,0 +1,30 @@
+appId: com.envisionproductions.globalfilmdirector
+productName: Global Film Director
+copyright: Copyright © Envision Productions
+directories:
+  output: release
+  buildResources: desktop/build
+files:
+  - desktop/**/*
+  - package.json
+  - "!desktop/node_modules/**"
+# Staged by scripts/stage-desktop-resources.mjs (includes standalone node_modules).
+extraResources:
+  - from: build/desktop-resources/app
+    to: app
+  - from: build/desktop-resources/ffmpeg
+    to: ffmpeg
+forceCodeSigning: false
+win:
+  # Local test package is win-unpacked (dir). NSIS with full FFmpeg is optional and slow.
+  target:
+    - target: dir
+      arch:
+        - x64
+  artifactName: GlobalFilmDirector-${version}-local-${arch}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+# Local test package only — do not publish a public release without further approval.

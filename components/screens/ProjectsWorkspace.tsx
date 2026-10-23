@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { BackupControl } from "@/components/backup/BackupControl";
 import { Pipeline } from "@/components/ui/Pipeline";
 import { projectTitleFromPrompt, useStudio } from "@/lib/studio";
 
@@ -164,6 +165,7 @@ export function ProjectsWorkspace() {
           </p>
         ) : null}
       </article>
+      <BackupControl />
       <Pipeline />
     </section>
   );

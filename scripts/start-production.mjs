@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, realpathSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
@@ -28,6 +28,17 @@ function mirror(src, dest) {
 
 mirror(path.join(root, ".next", "static"), path.join(standalone, ".next", "static"));
 mirror(path.join(root, "public"), path.join(standalone, "public"));
+
+// webpack-runtime requires `./{id}.js` beside itself; emit copies from chunks/ when missing.
+const serverDir = path.join(standalone, ".next", "server");
+const chunksDir = path.join(serverDir, "chunks");
+if (existsSync(chunksDir)) {
+  for (const name of readdirSync(chunksDir)) {
+    if (!name.endsWith(".js")) continue;
+    const dest = path.join(serverDir, name);
+    if (!existsSync(dest)) cpSync(path.join(chunksDir, name), dest);
+  }
+}
 
 const host = process.env.HOST || process.env.HOSTNAME || "127.0.0.1";
 const port = process.env.PORT || "5180";

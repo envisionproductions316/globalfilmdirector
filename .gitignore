@@ -2,6 +2,7 @@ node_modules
 .next
 dist
 out
+build/desktop-resources
 .DS_Store
 *.log
 *.tsbuildinfo
@@ -14,3 +15,7 @@ release
 *.exe
 *.dmg
 *.AppImage
+resources/ffmpeg/ffmpeg
+resources/ffmpeg/ffmpeg.exe
+resources/ffmpeg/ffprobe
+resources/ffmpeg/ffprobe.exe

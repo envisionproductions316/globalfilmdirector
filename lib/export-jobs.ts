@@ -41,6 +41,14 @@ const MAX_TOTAL_BYTES = 500 * 1024 * 1024;
 const MAX_CLIPS = 40;
 const MAX_DURATION_MS = 30 * 60 * 1000;
 
+function ffmpegBin() {
+  return process.env.GFD_FFMPEG_PATH || "ffmpeg";
+}
+
+function ffprobeBin() {
+  return process.env.GFD_FFPROBE_PATH || "ffprobe";
+}
+
 function run(command: string, args: string[]) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
     const child = spawn(command, args, { windowsHide: true });
@@ -59,12 +67,14 @@ function run(command: string, args: string[]) {
 
 export async function probeFfmpeg() {
   if (probeResult && Date.now() - probeAt < 30_000) return probeResult;
-  const listed = await run("ffmpeg", ["-hide_banner", "-version"]);
+  const bin = ffmpegBin();
+  const probeBin = ffprobeBin();
+  const listed = await run(bin, ["-hide_banner", "-version"]);
   const versionLine = `${listed.stdout}\n${listed.stderr}`.split(/\r?\n/).find((line) => line.startsWith("ffmpeg version")) ?? "";
   const ffmpegOk = listed.code === 0 && versionLine.startsWith("ffmpeg version");
-  const probe = ffmpegOk ? await run("ffprobe", ["-hide_banner", "-version"]) : { code: 1, stdout: "", stderr: "" };
+  const probe = ffmpegOk ? await run(probeBin, ["-hide_banner", "-version"]) : { code: 1, stdout: "", stderr: "" };
   const probeOk = probe.code === 0 && `${probe.stdout}\n${probe.stderr}`.includes("ffprobe");
-  const codecs = ffmpegOk ? await run("ffmpeg", ["-hide_banner", "-encoders"]) : { code: 1, stdout: "", stderr: "" };
+  const codecs = ffmpegOk ? await run(bin, ["-hide_banner", "-encoders"]) : { code: 1, stdout: "", stderr: "" };
   const encoderText = `${codecs.stdout}\n${codecs.stderr}`;
   const available = ffmpegOk && probeOk;
   probeResult = {
@@ -78,7 +88,7 @@ export async function probeFfmpeg() {
         ? "ffprobe is not available on this computer. Nothing was exported."
         : "",
   };
-  ffmpegPath = available ? "ffmpeg" : "";
+  ffmpegPath = available ? bin : "";
   probeAt = Date.now();
   return probeResult;
 }
@@ -90,7 +100,7 @@ async function probeStreams(filePath: string) {
 
 function readProbe(filePath: string) {
   return new Promise<{ videoCodec: string; audioCodec: string; duration: number }>((resolve) => {
-    const child = spawn("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type,codec_name:format=duration", "-of", "json", filePath], { windowsHide: true });
+    const child = spawn(ffprobeBin(), ["-v", "error", "-show_entries", "stream=codec_type,codec_name:format=duration", "-of", "json", filePath], { windowsHide: true });
     let stdout = "";
     child.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk.toString();
@@ -171,7 +181,7 @@ export async function startExport(manifest: ExportManifest, files: { mediaId: st
   }
 
   const id = crypto.randomUUID();
-  const directory = path.join(tmpdir(), `gfd-export-${id}`);
+  const directory = path.join(process.env.GFD_TMP_DIR || tmpdir(), `gfd-export-${id}`);
   await mkdir(directory, { recursive: true });
   const sources: ExportSource[] = [];
   for (const file of files) {
@@ -212,7 +222,7 @@ export async function startExport(manifest: ExportManifest, files: { mediaId: st
   };
   jobs.set(id, job);
 
-  const child = spawn(ffmpegPath || "ffmpeg", ["-progress", "pipe:1", "-nostats", ...plan.args], { windowsHide: true });
+  const child = spawn(ffmpegPath || ffmpegBin(), ["-progress", "pipe:1", "-nostats", ...plan.args], { windowsHide: true });
   job.process = child;
   let stderr = "";
   let progressText = "";

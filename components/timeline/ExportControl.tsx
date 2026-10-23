@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getDesktopApi } from "@/lib/desktop-bridge";
 import { getMedia } from "@/lib/media-db";
 import { useStudio } from "@/lib/studio";
 import { formatTimecode } from "@/lib/timeline";
@@ -82,8 +83,28 @@ export function ExportControl() {
       const url = URL.createObjectURL(blob);
       setDownload(url);
       const seconds = result.probedDuration.toFixed(2);
-      setStatus(`Export complete. ${result.videoCodec} / ${result.audioCodec || "no audio"}, ${seconds}s, ${result.bytes} bytes. This is the timeline encode, not an animated render.`);
+      let nextStatus = `Export complete. ${result.videoCodec} / ${result.audioCodec || "no audio"}, ${seconds}s, ${result.bytes} bytes. This is the timeline encode, not an animated render.`;
       studio.recordExport(`Timeline MP4 ${seconds}s`);
+      const desktop = getDesktopApi();
+      if (desktop) {
+        const save = await desktop.showSaveDialog({
+          title: "Save exported MP4",
+          defaultPath: `${studio.activeProject.title || "timeline"}.mp4`,
+          filters: [{ name: "MP4", extensions: ["mp4"] }],
+        });
+        if (!save.canceled && save.filePath) {
+          const buffer = await blob.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          let binary = "";
+          const chunk = 0x8000;
+          for (let i = 0; i < bytes.length; i += chunk) binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+          const written = await desktop.writeFile({ path: save.filePath, base64: btoa(binary) });
+          nextStatus = written.error
+            ? `Export complete, but desktop save failed: ${written.error}`
+            : `Export complete and saved to ${save.filePath}. ${result.videoCodec} / ${result.audioCodec || "no audio"}, ${seconds}s.`;
+        }
+      }
+      setStatus(nextStatus);
     } catch {
       setStatus("Export stopped before a file was written.");
     } finally {
