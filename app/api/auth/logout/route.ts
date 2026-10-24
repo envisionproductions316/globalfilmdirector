@@ -40,10 +40,11 @@ export async function POST() {
       /* ignore */
     }
   }
-  jar.delete(SESSION_COOKIE);
-  jar.delete(TOKEN_COOKIE);
-  return NextResponse.json({
+  const response = NextResponse.json({
     ok: true,
     message: "Signed out. Local projects and recordings on this device were kept.",
   });
+  response.cookies.delete(SESSION_COOKIE);
+  response.cookies.delete(TOKEN_COOKIE);
+  return response;
 }

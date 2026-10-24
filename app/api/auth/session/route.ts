@@ -96,16 +96,18 @@ export async function GET() {
   }
 
   if (!tokens?.refreshToken) {
-    jar.delete(SESSION_COOKIE);
-    jar.delete(TOKEN_COOKIE);
-    return NextResponse.json({ session: null, error: "Session expired." });
+    const expired = NextResponse.json({ session: null, error: "Session expired." });
+    expired.cookies.delete(SESSION_COOKIE);
+    expired.cookies.delete(TOKEN_COOKIE);
+    return expired;
   }
 
   const next = await refreshWebTokens(tokens.refreshToken);
   if (!next?.access_token) {
-    jar.delete(SESSION_COOKIE);
-    jar.delete(TOKEN_COOKIE);
-    return NextResponse.json({ session: null, error: "Session expired." });
+    const expired = NextResponse.json({ session: null, error: "Session expired." });
+    expired.cookies.delete(SESSION_COOKIE);
+    expired.cookies.delete(TOKEN_COOKIE);
+    return expired;
   }
 
   const claims = decodeJwtPayload(String(next.id_token || next.access_token || ""));
@@ -118,11 +120,18 @@ export async function GET() {
   const expiresAt = Date.now() + Number(next.expires_in || 3600) * 1000;
   const refreshed: SessionPayload = { user, expiresAt, source: "web" };
   const base = cookieBase();
-  jar.set(SESSION_COOKIE, JSON.stringify(refreshed), {
+  const response = NextResponse.json({
+    session: {
+      user,
+      expiresAt,
+      source: "web" as const,
+    },
+  });
+  response.cookies.set(SESSION_COOKIE, JSON.stringify(refreshed), {
     ...base,
     maxAge: Math.max(60, Math.floor((expiresAt - Date.now()) / 1000)),
   });
-  jar.set(
+  response.cookies.set(
     TOKEN_COOKIE,
     JSON.stringify({
       accessToken: next.access_token || "",
@@ -134,12 +143,5 @@ export async function GET() {
       maxAge: TOKEN_COOKIE_MAX_AGE_SEC,
     },
   );
-
-  return NextResponse.json({
-    session: {
-      user,
-      expiresAt,
-      source: "web" as const,
-    },
-  });
+  return response;
 }

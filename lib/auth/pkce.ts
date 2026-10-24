@@ -18,12 +18,13 @@ export function randomUrlSafe(bytes = 32) {
 
 export async function sha256Base64Url(input: string) {
   const data = new TextEncoder().encode(input);
-  if (typeof crypto !== "undefined" && crypto.subtle) {
-    const digest = await crypto.subtle.digest("SHA-256", data);
-    return base64Url(new Uint8Array(digest));
+  // Web Crypto only — avoids bundling `node:crypto` into the Next.js client (UnhandledSchemeError).
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) {
+    throw new Error("Web Crypto SHA-256 is required for PKCE (browser or Node with globalThis.crypto.subtle).");
   }
-  const { createHash } = await import("node:crypto");
-  return createHash("sha256").update(input).digest("base64url");
+  const digest = await subtle.digest("SHA-256", data);
+  return base64Url(new Uint8Array(digest));
 }
 
 export async function createPkcePair() {

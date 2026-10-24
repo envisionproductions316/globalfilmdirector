@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuthPublicConfig } from "@/lib/auth/config";
 import { verifyIdToken } from "@/lib/auth/verify-id-token";
@@ -77,18 +76,19 @@ export async function POST(request: Request) {
   }
   const expiresAt = Date.now() + Number(tokens.expires_in || 3600) * 1000;
   const session = { user, expiresAt, source: "web" as const };
-  const jar = await cookies();
   const cookieBase = {
     httpOnly: true,
     sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
   };
-  jar.set(SESSION_COOKIE, JSON.stringify(session), {
+  // Set cookies on the response object — cookies().set() alone is unreliable in App Router handlers.
+  const response = NextResponse.json({ session });
+  response.cookies.set(SESSION_COOKIE, JSON.stringify(session), {
     ...cookieBase,
     maxAge: Math.max(60, Math.floor((expiresAt - Date.now()) / 1000)),
   });
-  jar.set(
+  response.cookies.set(
     TOKEN_COOKIE,
     JSON.stringify({
       accessToken: tokens.access_token || "",
@@ -100,5 +100,5 @@ export async function POST(request: Request) {
       maxAge: 14 * 24 * 60 * 60,
     },
   );
-  return NextResponse.json({ session });
+  return response;
 }
