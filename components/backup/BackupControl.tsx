@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { BACKUP_FORMAT, base64ToBlob, blobToBase64, validateBackup, type StudioBackup } from "@/lib/backup";
-import { getDesktopApi } from "@/lib/desktop-bridge";
+import { BACKUP_FORMAT, base64ToBlob, blobToBase64, scrubAuthFromStudioSnapshot, validateBackup, type StudioBackup } from "@/lib/backup";
+import { base64ToUtf8, getDesktopApi, utf8ToBase64 } from "@/lib/desktop-bridge";
 import { clearAllMedia, listMediaRecords, putMedia } from "@/lib/media-db";
 
 const STORAGE_KEY = "gfd.studio.v1";
@@ -15,7 +15,7 @@ export function BackupControl() {
   async function buildBackup(): Promise<StudioBackup> {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) throw new Error("No studio project data is stored in this browser profile.");
-    const studio = JSON.parse(raw) as unknown;
+    const studio = scrubAuthFromStudioSnapshot(JSON.parse(raw) as unknown);
     const records = await listMediaRecords();
     const media = [];
     for (const record of records) {
@@ -59,7 +59,7 @@ export function BackupControl() {
         }
         const written = await desktop.writeFile({
           path: save.filePath,
-          base64: btoa(unescape(encodeURIComponent(text))),
+          base64: utf8ToBase64(text),
         });
         if (written.error) {
           setMessage(written.error);
@@ -145,7 +145,7 @@ export function BackupControl() {
           setMessage(read.error || "Could not read backup file.");
           return;
         }
-        const text = decodeURIComponent(escape(atob(read.base64)));
+        const text = base64ToUtf8(read.base64);
         await importBackupFromText(text);
         return;
       }
@@ -198,6 +198,21 @@ export function BackupControl() {
         >
           Restore backup
         </button>
+        {desktop ? (
+          <button
+            type="button"
+            className="h-9 rounded-[7px] bg-inset px-3 text-[13px] disabled:opacity-50"
+            data-testid="open-production-folder"
+            disabled={busy}
+            onClick={() => {
+              void desktop.openDataDir().then((result) => {
+                setMessage(result.error || "Opened the desktop production data folder (capture sessions and render temps). Project JSON and media still live in this Chromium profile.");
+              });
+            }}
+          >
+            Open production data folder
+          </button>
+        ) : null}
       </div>
       {message ? (
         <p className="mt-3 text-sm text-muted" data-testid="backup-message">

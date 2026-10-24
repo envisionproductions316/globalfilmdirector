@@ -117,6 +117,12 @@ function prune() {
   }
 }
 
+/** Extend TTL while a session is actively polled (desktop restart / interrupted upload recovery). */
+function touch(session: SessionRecord) {
+  session.expiresAt = Date.now() + SESSION_TTL_MS;
+  persist(session);
+}
+
 function makeCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
@@ -165,6 +171,7 @@ export function getCaptureSession(code: string): CaptureSessionMeta | null {
   prune();
   const session = store().get(code.toUpperCase());
   if (!session) return null;
+  touch(session);
   return {
     code: session.code,
     projectId: session.projectId,
@@ -179,7 +186,10 @@ export function getCaptureSession(code: string): CaptureSessionMeta | null {
 
 export function getPendingTake(code: string): PendingPhoneTake | null {
   prune();
-  return store().get(code.toUpperCase())?.pending ?? null;
+  const session = store().get(code.toUpperCase());
+  if (!session) return null;
+  if (session.pending) touch(session);
+  return session.pending ?? null;
 }
 
 export function putPhoneTake(

@@ -1,16 +1,20 @@
 # Global Film Director — Pre-Desktop Audit
 
-**Status:** Read-only audit complete. **Do not begin desktop conversion until this report is approved.**  
+**Status:** Historical pre-desktop audit (preserved). **Desktop v1 local shell followed** — see [`DESKTOP.md`](DESKTOP.md) and post-ship re-audit [`DESKTOP_REAUDIT.md`](DESKTOP_REAUDIT.md).  
 **Date:** 2026-10-23  
 **Repository:** [envisionproductions316/globalfilmdirector](https://github.com/envisionproductions316/globalfilmdirector)  
 **Approved Figma:** [ybDQ62Q6oBo1W8HkDJyJV4](https://www.figma.com/design/ybDQ62Q6oBo1W8HkDJyJV4)  
 **Phase 2 baseline (confirmed):** `84b5436` — *Record camera performances as local takes linked to characters and scenes.*  
-**HEAD inspected:** `c67c574` (+ large **uncommitted** working tree with Capture/Character Mirror, phone upload, pose overlay, timeline gaps, connectors probe, Director API).  
-**Audit constraint:** No application code, schemas, storage, or desktop frameworks were modified or installed during this audit. This document is the only deliverable written.
+**HEAD inspected (at audit time):** `c67c574` (+ large **uncommitted** working tree with Capture/Character Mirror, phone upload, pose overlay, timeline gaps, connectors probe, Director API).  
+**Audit constraint (at write time):** No application code, schemas, storage, or desktop frameworks were modified or installed during this audit. This document was the only deliverable written then.
 
 ### Decisions locked after audit (2026-10-23)
 
-See [`DESKTOP_PREP.md`](DESKTOP_PREP.md). Summary: **Electron** for desktop v1; **QR phone upload** in MVP (not live viewfinder); Figma **Current vs Proposed** pages (originals preserved); **do not implement Electron** until baseline + backup gate cleared.
+See [`DESKTOP_PREP.md`](DESKTOP_PREP.md). Summary: **Electron** for desktop v1; **QR phone upload** in MVP (not live viewfinder); Figma **Current vs Proposed** pages (originals preserved).
+
+### Post-desktop mandatory requirement (2026-10-23)
+
+**Unified authentication** for website + Windows desktop is required in the next phase. Design and roadmap: [`AUTH_UNIFIED.md`](AUTH_UNIFIED.md). Re-audit: [`DESKTOP_REAUDIT.md`](DESKTOP_REAUDIT.md). Auth ≠ Envision Cloud project sync.
 
 ---
 

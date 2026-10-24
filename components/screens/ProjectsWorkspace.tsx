@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BackupControl } from "@/components/backup/BackupControl";
 import { Pipeline } from "@/components/ui/Pipeline";
+import { useAuth } from "@/lib/auth/AuthProvider";
 import { projectTitleFromPrompt, useStudio } from "@/lib/studio";
 
 const KINDS = ["Feature", "Music video", "Documentary", "Animation", "Draft"] as const;
 
 export function ProjectsWorkspace() {
   const studio = useStudio();
+  const auth = useAuth();
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [kind, setKind] = useState<(typeof KINDS)[number]>("Feature");
@@ -22,7 +24,7 @@ export function ProjectsWorkspace() {
 
   function createProduction() {
     const raw = prompt;
-    const error = studio.createProject(raw, kind);
+    const error = studio.createProject(raw, kind, auth.user?.id || "");
     if (error) {
       setMessage(error);
       return;

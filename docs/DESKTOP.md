@@ -2,7 +2,9 @@
 
 **Status:** Local Windows desktop shell implemented. **Not a public release.**  
 **Baseline before desktop work:** `17d3cc6` (pushed to `origin/main`).  
-**Prep / decisions:** [`DESKTOP_PREP.md`](DESKTOP_PREP.md) · Audit: [`PRE_DESKTOP_AUDIT.md`](PRE_DESKTOP_AUDIT.md)
+**Desktop shell commit:** `55ce189` (+ local hardening may be uncommitted).  
+**Prep / decisions:** [`DESKTOP_PREP.md`](DESKTOP_PREP.md) · Audit: [`PRE_DESKTOP_AUDIT.md`](PRE_DESKTOP_AUDIT.md) · Re-audit: [`DESKTOP_REAUDIT.md`](DESKTOP_REAUDIT.md)  
+**Auth:** OIDC/PKCE scaffold + owner isolation in tree — [`AUTH_UNIFIED.md`](AUTH_UNIFIED.md). Live login needs IdP env. **Auth ≠ cloud sync.**
 
 ## Architecture
 
@@ -13,7 +15,8 @@ Electron main
   → spawn Next standalone (ELECTRON_RUN_AS_NODE)
   → BrowserWindow → http://127.0.0.1:<port>/projects
   → preload.cjs (contextIsolation, no nodeIntegration, sandbox)
-  → restricted IPC (dialogs, bounded read/write, openPath)
+  → restricted IPC (dialogs, bounded read/write, openPath, auth session)
+  → desktop auth: system browser PKCE → safeStorage vault
 ```
 
 No second frontend. No Base44. Figma **Current** frames remain the implemented UI; **Proposed** stays future-only.
@@ -45,11 +48,15 @@ Export continues through `/api/export` with validated args, `GFD_TMP_DIR` cleanu
 
 ## Backup & restore
 
-Projects page → **Backup projects + media** / **Restore backup**. Format **`gfd-backup-v1`** includes studio JSON (projects, scenes, shots, characters/DNA, timeline, audio refs, settings) plus IndexedDB media blobs. Validation runs before restore; UI confirms replace. **GitHub commits are not media backups.**
+Projects page → **Backup projects + media** / **Restore backup**. Format **`gfd-backup-v1`** includes studio JSON (projects, scenes, shots, characters/DNA, timeline, audio refs, settings) plus IndexedDB media blobs. Validation runs before restore; UI confirms replace. **Open production data folder** opens desktop `userData/gfd-data` (capture sessions + render temps). **GitHub commits are not media backups.**
+
+## Native file dialogs
+
+Desktop uses OS dialogs for backup/restore, export save-as, and Edit/Audio **Import media**. Import reads files through the restricted IPC bridge (200MB per file). Browser HTML file inputs remain for non-desktop runs.
 
 ## Phone capture
 
-QR record/upload preserved. Sessions persist under `GFD_DATA_DIR/capture-sessions` (desktop `userData`) across local server restarts within TTL. This is **not** a live wireless viewfinder.
+QR record/upload preserved. Sessions persist under `GFD_DATA_DIR/capture-sessions` (desktop `userData`) across local server restarts within TTL; active polling extends TTL. This is **not** a live wireless viewfinder.
 
 ## Security review (Phase 4)
 
@@ -98,6 +105,10 @@ Camera hardware, phone QR on a physical device, full backup of a large media lib
 - Default Electron icon until branded icons are added under `desktop/build`
 - No public installer distribution, auto-update, or GitHub Release without further approval
 
-## Acceptance checkpoint
+## Acceptance checkpoint (Phase 4 local desktop)
 
 A working local Windows desktop build that opens GFD without manually starting a development server, with native dialogs, backup/restore, and FFmpeg export when binaries are available. Wider installation awaits explicit approval.
+
+## Next phase gate (unified auth)
+
+Phase 4 does **not** include shared website/desktop accounts. Phase 5 must implement centralized authentication per [`AUTH_UNIFIED.md`](AUTH_UNIFIED.md) before claiming cross-surface login. Signing in must not be marketed as Envision Cloud project synchronization.

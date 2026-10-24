@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import { AppShell } from "@/components/AppShell";
+import { AuthProvider } from "@/lib/auth/AuthProvider";
 import { StudioProvider } from "@/lib/studio";
 import "./globals.css";
 
@@ -25,9 +26,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Script id="theme-boot" strategy="beforeInteractive">
           {themeBoot}
         </Script>
-        <StudioProvider>
-          <AppShell>{children}</AppShell>
-        </StudioProvider>
+        <AuthProvider>
+          <StudioProvider>
+            <AppShell>{children}</AppShell>
+          </StudioProvider>
+        </AuthProvider>
       </body>
     </html>
   );

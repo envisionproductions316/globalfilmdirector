@@ -2,13 +2,24 @@
  * Electron main process — Global Film Director desktop shell.
  * Starts the Next.js standalone server locally and opens a secure BrowserWindow.
  */
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, cpSync, writeFileSync, readFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveFfmpegBinaries } from "./ffmpeg-path.mjs";
+import { beginDesktopAuth, clearDesktopSession, getDesktopAuthSnapshot } from "./auth.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.GFD_ELECTRON_DEV === "1" || !app.isPackaged;
@@ -67,14 +78,73 @@ function mirrorStaticAssets() {
   }
 }
 
-/** Packaged builds must not keep the developer machine appDir from required-server-files.json. */
+/** When project `.next` is an AppData junction, standalone/.next may be the same link — materialize real files. */
+function materializeStandaloneNext(standalone) {
+  const nextDir = path.join(standalone, ".next");
+  if (!existsSync(nextDir)) return;
+  let real = nextDir;
+  try {
+    real = realpathSync(nextDir);
+  } catch {
+    return;
+  }
+  const linked = (() => {
+    try {
+      return lstatSync(nextDir).isSymbolicLink() || path.resolve(real) !== path.resolve(nextDir);
+    } catch {
+      return false;
+    }
+  })();
+  if (!linked) {
+    const nested = path.join(nextDir, "standalone");
+    if (existsSync(nested)) rmSync(nested, { recursive: true, force: true });
+    return;
+  }
+  rmSync(nextDir, { recursive: true, force: true });
+  mkdirSync(nextDir, { recursive: true });
+  const keep = [
+    "server",
+    "static",
+    "BUILD_ID",
+    "app-build-manifest.json",
+    "app-path-routes-manifest.json",
+    "build-manifest.json",
+    "export-marker.json",
+    "fallback-build-manifest.json",
+    "images-manifest.json",
+    "package.json",
+    "prerender-manifest.json",
+    "react-loadable-manifest.json",
+    "required-server-files.json",
+    "routes-manifest.json",
+  ];
+  for (const name of keep) {
+    const src = path.join(real, name);
+    if (existsSync(src)) cpSync(src, path.join(nextDir, name), { recursive: true, dereference: true });
+  }
+}
+
+/** webpack-runtime requires `./{id}.js` beside itself; builds often only emit chunks/{id}.js. */
+function flattenServerChunks(standalone) {
+  const serverDir = path.join(standalone, ".next", "server");
+  const chunksDir = path.join(serverDir, "chunks");
+  if (!existsSync(chunksDir)) return;
+  for (const name of readdirSync(chunksDir)) {
+    if (!name.endsWith(".js")) continue;
+    const dest = path.join(serverDir, name);
+    if (!existsSync(dest)) cpSync(path.join(chunksDir, name), dest);
+  }
+}
+
+/** Packaged / junction builds must not keep the developer machine appDir. */
 function ensureStandaloneLocalPaths() {
   const standalone = standaloneDir();
+  materializeStandaloneNext(standalone);
+  flattenServerChunks(standalone);
   const rsfPath = path.join(standalone, ".next", "required-server-files.json");
   if (!existsSync(rsfPath)) return;
   try {
     const rsf = JSON.parse(readFileSync(rsfPath, "utf8"));
-    if (rsf.appDir === "." || rsf.appDir === standalone) return;
     rsf.appDir = standalone;
     rsf.relativeAppDir = ".";
     if (rsf.config) {
@@ -83,8 +153,25 @@ function ensureStandaloneLocalPaths() {
     }
     writeFileSync(rsfPath, JSON.stringify(rsf));
   } catch {
-    /* non-fatal — server may still start if staging already neutralized paths */
+    /* non-fatal — staging may already have neutralized paths */
   }
+  const nextConfig = path.join(standalone, "next.config.mjs");
+  if (!existsSync(nextConfig)) {
+    writeFileSync(
+      nextConfig,
+      `/** Generated at desktop startup — keep distDir local to standalone. */\nconst nextConfig = { distDir: ".next" };\nexport default nextConfig;\n`,
+    );
+  }
+}
+
+function assertIpcSender(event) {
+  if (!mainWindow || event.sender !== mainWindow.webContents) {
+    throw new Error("Desktop API is only available from the Global Film Director window.");
+  }
+}
+
+function dataDirPath() {
+  return path.join(app.getPath("userData"), "gfd-data");
 }
 
 function pickFreePort() {
@@ -127,10 +214,19 @@ function waitForServer(port, attempts = 80) {
 async function startNextServer() {
   const port = Number(process.env.GFD_PORT) || (await pickFreePort());
   serverPort = port;
-  const dataDir = path.join(app.getPath("userData"), "gfd-data");
+  const dataDir = dataDirPath();
   mkdirSync(dataDir, { recursive: true });
   mkdirSync(path.join(dataDir, "capture-sessions"), { recursive: true });
-  mkdirSync(path.join(dataDir, "tmp"), { recursive: true });
+  const tmpDir = path.join(dataDir, "tmp");
+  mkdirSync(tmpDir, { recursive: true });
+  // Clear stale render temps from previous crashed runs (keep capture-sessions).
+  try {
+    for (const name of readdirSync(tmpDir)) {
+      rmSync(path.join(tmpDir, name), { recursive: true, force: true });
+    }
+  } catch {
+    /* ignore */
+  }
 
   const bins = resolveFfmpegBinaries({
     resourcesPath: process.resourcesPath,
@@ -143,7 +239,7 @@ async function startNextServer() {
     HOST: "127.0.0.1",
     PORT: String(port),
     GFD_DATA_DIR: dataDir,
-    GFD_TMP_DIR: path.join(dataDir, "tmp"),
+    GFD_TMP_DIR: tmpDir,
     GFD_DESKTOP: "1",
   };
   if (bins.ffmpeg) env.GFD_FFMPEG_PATH = bins.ffmpeg;
@@ -240,17 +336,26 @@ function createWindow(port) {
 }
 
 function registerIpc() {
-  ipcMain.handle("gfd:get-info", () => ({
-    desktop: true,
-    version: app.getVersion(),
-    userData: app.getPath("userData"),
-    port: serverPort,
-  }));
+  ipcMain.handle("gfd:get-info", (event) => {
+    assertIpcSender(event);
+    return {
+      desktop: true,
+      version: app.getVersion(),
+      userData: app.getPath("userData"),
+      dataDir: dataDirPath(),
+      port: serverPort,
+    };
+  });
 
-  ipcMain.handle("gfd:show-open-dialog", async (_event, options = {}) => {
+  ipcMain.handle("gfd:show-open-dialog", async (event, options = {}) => {
+    assertIpcSender(event);
+    const allowedProps = new Set(["openFile", "openDirectory", "multiSelections", "treatPackageAsDirectory"]);
+    const properties = Array.isArray(options.properties)
+      ? options.properties.filter((p) => typeof p === "string" && allowedProps.has(p))
+      : ["openFile"];
     const result = await dialog.showOpenDialog(mainWindow ?? undefined, {
       title: typeof options.title === "string" ? options.title : "Open",
-      properties: Array.isArray(options.properties) ? options.properties.filter((p) => typeof p === "string") : ["openFile"],
+      properties: properties.length ? properties : ["openFile"],
       filters: Array.isArray(options.filters) ? options.filters : undefined,
     });
     if (!result.canceled) {
@@ -259,7 +364,8 @@ function registerIpc() {
     return { canceled: result.canceled, filePaths: result.filePaths };
   });
 
-  ipcMain.handle("gfd:show-save-dialog", async (_event, options = {}) => {
+  ipcMain.handle("gfd:show-save-dialog", async (event, options = {}) => {
+    assertIpcSender(event);
     const result = await dialog.showSaveDialog(mainWindow ?? undefined, {
       title: typeof options.title === "string" ? options.title : "Save",
       defaultPath: typeof options.defaultPath === "string" ? options.defaultPath : undefined,
@@ -269,7 +375,8 @@ function registerIpc() {
     return { canceled: result.canceled, filePath: result.filePath || "" };
   });
 
-  ipcMain.handle("gfd:open-path", async (_event, target) => {
+  ipcMain.handle("gfd:open-path", async (event, target) => {
+    assertIpcSender(event);
     if (typeof target !== "string" || !target.trim()) return { error: "Invalid path." };
     const resolved = path.resolve(target);
     if (!(isUnderDir(resolved, app.getPath("userData")) || isUnderDir(resolved, app.getPath("temp")))) {
@@ -279,7 +386,47 @@ function registerIpc() {
     return err ? { error: err } : { ok: true };
   });
 
-  ipcMain.handle("gfd:write-file", async (_event, payload) => {
+  ipcMain.handle("gfd:open-data-dir", async (event) => {
+    assertIpcSender(event);
+    const dir = dataDirPath();
+    mkdirSync(dir, { recursive: true });
+    const err = await shell.openPath(dir);
+    return err ? { error: err } : { ok: true, path: dir };
+  });
+
+  ipcMain.handle("gfd:open-external", async (event, target) => {
+    assertIpcSender(event);
+    if (typeof target !== "string" || !/^https?:\/\//i.test(target)) {
+      return { error: "Only http(s) URLs can be opened." };
+    }
+    await shell.openExternal(target);
+    return { ok: true };
+  });
+
+  ipcMain.handle("gfd:auth-begin", async (event, options = {}) => {
+    assertIpcSender(event);
+    try {
+      return await beginDesktopAuth({ mode: options.mode === "signup" ? "signup" : "login" });
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Sign-in failed." };
+    }
+  });
+
+  ipcMain.handle("gfd:auth-session", async (event) => {
+    assertIpcSender(event);
+    const snapshot = await getDesktopAuthSnapshot();
+    const issuer = (process.env.AUTH_ISSUER || process.env.NEXT_PUBLIC_AUTH_ISSUER || "").trim();
+    return { ...snapshot, configured: Boolean(issuer) };
+  });
+
+  ipcMain.handle("gfd:auth-sign-out", async (event) => {
+    assertIpcSender(event);
+    await clearDesktopSession();
+    return { ok: true };
+  });
+
+  ipcMain.handle("gfd:write-file", async (event, payload) => {
+    assertIpcSender(event);
     if (!payload || typeof payload.path !== "string" || typeof payload.base64 !== "string") {
       return { error: "Invalid write payload." };
     }
@@ -300,7 +447,8 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle("gfd:read-file", async (_event, target) => {
+  ipcMain.handle("gfd:read-file", async (event, target) => {
+    assertIpcSender(event);
     if (typeof target !== "string") return { error: "Invalid path." };
     const resolved = path.resolve(target);
     if (!canAccessUserFile(resolved)) {
@@ -308,10 +456,10 @@ function registerIpc() {
     }
     try {
       const data = readFileSync(resolved);
-      if (data.byteLength > 400_000_000) {
-        return { error: "File exceeds the desktop read limit." };
+      if (data.byteLength > 200 * 1024 * 1024) {
+        return { error: "File exceeds the 200MB desktop import limit." };
       }
-      return { ok: true, base64: data.toString("base64"), bytes: data.byteLength };
+      return { ok: true, base64: data.toString("base64"), bytes: data.byteLength, name: path.basename(resolved) };
     } catch (error) {
       return { error: error instanceof Error ? error.message : "Read failed." };
     }
@@ -320,20 +468,54 @@ function registerIpc() {
 
 async function stopServer() {
   shuttingDown = true;
-  if (serverChild && !serverChild.killed) {
-    serverChild.kill();
-    serverChild = null;
+  const child = serverChild;
+  serverChild = null;
+  if (!child || child.killed) return;
+  try {
+    if (process.platform === "win32" && child.pid) {
+      spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true, stdio: "ignore" });
+    } else {
+      child.kill("SIGTERM");
+    }
+  } catch {
+    try {
+      child.kill();
+    } catch {
+      /* ignore */
+    }
   }
 }
 
 app.whenReady().then(async () => {
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === "media");
+  });
+
   registerIpc();
   try {
     const { port } = await startNextServer();
     createWindow(port);
-  } catch (error) {
-    dialog.showErrorBox("Global Film Director", error instanceof Error ? error.message : "Desktop startup failed.");
-    app.quit();
+  } catch (firstError) {
+    await stopServer();
+    shuttingDown = false;
+    try {
+      ensureStandaloneLocalPaths();
+      mirrorStaticAssets();
+      const { port } = await startNextServer();
+      createWindow(port);
+      void dialog.showMessageBox({
+        type: "warning",
+        title: "Global Film Director",
+        message: "Desktop recovered after a startup error. If something looks wrong, run npm run build and try again.",
+        detail: firstError instanceof Error ? firstError.message : String(firstError),
+      });
+    } catch (error) {
+      dialog.showErrorBox(
+        "Global Film Director",
+        error instanceof Error ? error.message : "Desktop startup failed. Run npm run build, then npm run desktop.",
+      );
+      app.quit();
+    }
   }
 
   app.on("activate", () => {

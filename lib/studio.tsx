@@ -32,6 +32,7 @@ import {
   type TrackMix,
 } from "@/lib/timeline";
 import type { CaptionCue } from "@/lib/captions";
+import { isProjectVisibleToUser } from "@/lib/auth/types";
 import {
   applyDirectionLocal,
   CHARACTER_KINDS,
@@ -72,6 +73,8 @@ export type DirectorMessage = {
   source?: "local" | "llm";
 };
 
+export type ProjectSyncStatus = "local-only" | "linked-local" | "cloud-pending" | "cloud-synced";
+
 export type ProjectRecord = {
   id: string;
   title: string;
@@ -81,6 +84,10 @@ export type ProjectRecord = {
   directorNote: string;
   messages: DirectorMessage[];
   plan: PlanItem[];
+  /** Empty = unowned local legacy / not linked yet. */
+  ownerUserId: string;
+  /** Honest sync label — linked-local is NOT cloud-synced. */
+  syncStatus: ProjectSyncStatus;
 };
 
 export type CharacterRecord = {
@@ -195,7 +202,7 @@ import { CONNECTORS as CONNECTOR_CATALOG, type ConnectorRecord } from "@/lib/con
 export type { ConnectorRecord } from "@/lib/connectors-catalog";
 
 type StudioState = {
-  schemaVersion: 3;
+  schemaVersion: 4;
   theme: ThemeName;
   studioMode: StudioMode;
   assetCategory: AssetCategory;
@@ -393,7 +400,7 @@ function completeTake(take: Partial<TakeRecord>, projectId: string): TakeRecord 
   };
 }
 
-function blankProject(id: string, title: string, kind: string, directorNote = ""): ProjectRecord {
+function blankProject(id: string, title: string, kind: string, directorNote = "", ownerUserId = ""): ProjectRecord {
   return {
     id,
     title,
@@ -403,7 +410,16 @@ function blankProject(id: string, title: string, kind: string, directorNote = ""
     directorNote,
     messages: [],
     plan: defaultPlan(),
+    ownerUserId,
+    syncStatus: ownerUserId ? "linked-local" : "local-only",
   };
+}
+
+function normalizeSyncStatus(value: unknown): ProjectSyncStatus {
+  // cloud-synced is reserved until a tested sync path exists — treat as linked-local.
+  if (value === "cloud-synced") return "linked-local";
+  if (value === "linked-local" || value === "cloud-pending" || value === "local-only") return value;
+  return "local-only";
 }
 
 /** Short project title from a free-form prompt; full text stays in directorNote. */
@@ -424,7 +440,7 @@ const STARTER_CHARACTERS: CharacterRecord[] = [
 ];
 
 const INITIAL: StudioState = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   theme: "night",
   studioMode: "director",
   assetCategory: "characters",
@@ -488,6 +504,8 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
 
   const projects = incoming.map((project) => {
     const active = project.id === activeProjectId;
+    const ownerUserId = typeof project.ownerUserId === "string" ? project.ownerUserId : "";
+    const syncStatus = normalizeSyncStatus(project.syncStatus) === "local-only" && ownerUserId ? "linked-local" : normalizeSyncStatus(project.syncStatus);
     return {
       id: project.id,
       title: project.title || "Untitled production",
@@ -506,6 +524,8 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
             }))
         : [],
       plan: Array.isArray(project.plan) && project.plan.length > 0 ? project.plan : defaultPlan(),
+      ownerUserId,
+      syncStatus: ownerUserId && syncStatus === "local-only" ? "linked-local" : syncStatus,
     };
   });
 
@@ -600,7 +620,7 @@ function normalize(stored: LegacyState, base: StudioState): StudioState {
     keepFacialExpressions: typeof prefs.keepFacialExpressions === "boolean" ? prefs.keepFacialExpressions : DEFAULT_CAPTURE_PREFS.keepFacialExpressions,
   };
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     theme,
     studioMode,
     assetCategory,
@@ -690,7 +710,11 @@ type StudioContextValue = {
   setActiveProjectId: (id: string) => void;
   setStatus: (status: ProductionStatus) => void;
   setAccountName: (name: string) => void;
-  createProject: (description: string, kind?: string) => string | null;
+  createProject: (description: string, kind?: string, ownerUserId?: string) => string | null;
+  /** Link unowned local projects to a signed-in account. Does not upload to the cloud. */
+  linkProjectsToAccount: (userId: string, projectIds: string[] | "all-unowned") => number;
+  /** Keep active project on a visible row; create an unowned local draft if none are visible. */
+  ensureVisibleActiveProject: (userId: string | null) => void;
   updateProject: (id: string, patch: Partial<Pick<ProjectRecord, "title" | "kind">>) => void;
   deleteProject: (id: string) => void;
   saveLocal: () => void;
@@ -931,7 +955,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         }),
       setStatus: (status) => updateActive({ status }),
       setAccountName: (name) => setState((current) => ({ ...current, accountName: name })),
-      createProject: (description, kind = "Draft") => {
+      createProject: (description, kind = "Draft", ownerUserId = "") => {
         const prompt = description.trim();
         if (!prompt) return "Describe a film before creating a production.";
         const title = projectTitleFromPrompt(prompt) || "Untitled production";
@@ -939,9 +963,10 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         const id = crypto.randomUUID();
         const nextScenes = scenesFor(id);
         const nextShots = shotsFor(id);
+        const owner = ownerUserId.trim();
         setState((current) => ({
           ...current,
-          projects: [blankProject(id, title, projectKind, prompt), ...current.projects],
+          projects: [blankProject(id, title, projectKind, prompt, owner), ...current.projects],
           activeProjectId: id,
           selectedCharacterId: "",
           selectedTakeId: "",
@@ -957,9 +982,74 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           mixes: [{ projectId: id, tracks: defaultMix() }, ...current.mixes],
           timelineViews: [{ projectId: id, playheadMs: 0, pixelsPerSecond: 48 }, ...current.timelineViews],
           editorOpen: false,
-          notices: withNotice(current.notices, `“${title}” is saved on this device. Shape it in Director next.`),
+          notices: withNotice(
+            current.notices,
+            owner
+              ? `“${title}” is saved for your account on this device (not cloud-synced). Shape it in Director next.`
+              : `“${title}” is saved on this device. Shape it in Director next.`,
+          ),
         }));
         return null;
+      },
+      linkProjectsToAccount: (userId, projectIds) => {
+        const owner = userId.trim();
+        if (!owner) return 0;
+        let linked = 0;
+        setState((current) => {
+          const targets = new Set(
+            projectIds === "all-unowned"
+              ? current.projects.filter((project) => !project.ownerUserId).map((project) => project.id)
+              : projectIds,
+          );
+          const projects = current.projects.map((project) => {
+            if (!targets.has(project.id)) return project;
+            if (project.ownerUserId && project.ownerUserId !== owner) return project;
+            linked += 1;
+            return { ...project, ownerUserId: owner, syncStatus: "linked-local" as const };
+          });
+          return {
+            ...current,
+            projects,
+            notices: withNotice(
+              current.notices,
+              linked > 0
+                ? `Linked ${linked} local project${linked === 1 ? "" : "s"} to your account on this device. Nothing was uploaded to Envision Cloud.`
+                : "No unowned local projects were linked.",
+            ),
+          };
+        });
+        return linked;
+      },
+      ensureVisibleActiveProject: (userId) => {
+        setState((current) => {
+          const active = current.projects.find((project) => project.id === current.activeProjectId);
+          if (active && isProjectVisibleToUser(active, userId)) return current;
+          const visible = current.projects.find((project) => isProjectVisibleToUser(project, userId));
+          if (visible) {
+            return { ...current, activeProjectId: visible.id };
+          }
+          const id = crypto.randomUUID();
+          const nextScenes = scenesFor(id);
+          const nextShots = shotsFor(id);
+          return {
+            ...current,
+            projects: [blankProject(id, "Local project", "Draft", "Local unowned draft for this device."), ...current.projects],
+            activeProjectId: id,
+            selectedCharacterId: "",
+            selectedTakeId: "",
+            selectedClipId: "",
+            selectedSceneId: nextScenes[0]?.id || "",
+            selectedShotId: nextShots[0]?.id || "",
+            shots: [...nextShots, ...current.shots],
+            scenes: [...nextScenes, ...current.scenes],
+            mixes: [{ projectId: id, tracks: defaultMix() }, ...current.mixes],
+            timelineViews: [{ projectId: id, playheadMs: 0, pixelsPerSecond: 48 }, ...current.timelineViews],
+            notices: withNotice(
+              current.notices,
+              "Account-linked projects stay on this device but are hidden until you sign in as their owner. Started a local project you can use now.",
+            ),
+          };
+        });
       },
       updateProject: (id, patch) =>
         setState((current) => ({

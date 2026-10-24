@@ -106,11 +106,21 @@ flowchart LR
 Do not implement UI that pretends these work until they are integrated and tested:
 
 - APG / GCIE as Director providers (optional OpenAI-compatible LLM via env is the cloud path for now)
-- Envision Cloud
+- Envision Cloud **project/media sync** (account sign-in is a separate Phase 5 track — see [`AUTH_UNIFIED.md`](AUTH_UNIFIED.md))
+- Unified website ↔ desktop authentication: Phase 5B local path **implemented**; set `AUTH_ISSUER` — see [`PHASE5B_VERIFICATION.md`](PHASE5B_VERIFICATION.md)
 - Motion retargeting / mesh Live Sync (2D silhouette preview is not retargeting)
 - Live wireless phone viewfinder (phone records & uploads takes; not a live remote camera feed)
 - AI lip-sync / expression / regenerate-motion tools (Rhubarb is on the PC; app does not call it yet)
 - Blender / ComfyUI workers (Blender is installed; ComfyUI is not; neither is a studio worker yet)
+
+## Roadmap (near-term)
+
+| Phase | Focus | Docs |
+|-------|--------|------|
+| 4 | Electron local desktop (done for local test package) | [`DESKTOP.md`](DESKTOP.md), [`DESKTOP_REAUDIT.md`](DESKTOP_REAUDIT.md) |
+| **5B** | **Unified auth** — web BFF + desktop PKCE against Envision; run §6 matrix before production claims | [`AUTH_UNIFIED.md`](AUTH_UNIFIED.md), [`PHASE5B_VERIFICATION.md`](PHASE5B_VERIFICATION.md) |
+| Later | Envision Cloud sync of projects/media | Separate from auth |
+| Later | Public installer / auto-update | Requires explicit approval |
 
 ## Recent handoff highlights
 

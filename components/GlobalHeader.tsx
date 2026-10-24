@@ -2,17 +2,26 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { AccountPanel } from "@/components/auth/AccountPanel";
+import { useAuth } from "@/lib/auth/AuthProvider";
+import { isProjectVisibleToUser } from "@/lib/auth/types";
 import { DESTINATIONS, useStudio, type ProductionStatus } from "@/lib/studio";
 
 const STATUSES: ProductionStatus[] = ["Draft", "In review", "Approved"];
 
 export function GlobalHeader() {
   const studio = useStudio();
+  const auth = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+
+  const visibleProjects = useMemo(
+    () => studio.projects.filter((project) => isProjectVisibleToUser(project, auth.user?.id ?? null)),
+    [studio.projects, auth.user?.id],
+  );
 
   function setMode(mode: "director" | "studio") {
     studio.setStudioMode(mode);
@@ -24,6 +33,8 @@ export function GlobalHeader() {
       if (pathname === "/capture" || pathname === "/characters" || pathname === "/director") router.push("/edit");
     }
   }
+
+  const initial = (auth.user?.name || auth.user?.email || studio.accountName || "?").slice(0, 1).toUpperCase();
 
   return (
     <header className="flex min-h-[72px] flex-wrap items-center gap-3 border-b border-[var(--line)] bg-header px-4 py-2 text-ink lg:px-5">
@@ -98,9 +109,32 @@ export function GlobalHeader() {
           </select>
         </label>
 
-        <button type="button" className="min-h-9 rounded-md bg-inset px-3 text-xs text-muted" title="Projects and media stay on this device. No cloud account is linked.">
-          Local only
+        <button
+          type="button"
+          className="min-h-9 rounded-md bg-inset px-3 text-xs text-muted"
+          title="Signed in does not mean projects are uploaded to Envision Cloud."
+          data-testid="cloud-status-chip"
+        >
+          {auth.user ? "Account · local device" : "Local only"}
         </button>
+
+        {visibleProjects.length > 1 ? (
+          <label className="hidden flex-col gap-0.5 text-[10px] text-muted lg:flex">
+            Project
+            <select
+              className="min-h-8 max-w-[10rem] rounded-md border border-[var(--line)] bg-canvas/40 px-2 text-xs text-ink"
+              value={studio.activeProjectId}
+              onChange={(event) => studio.setActiveProjectId(event.target.value)}
+              data-testid="header-project-switch"
+            >
+              {visibleProjects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
         <div className="relative">
           <button
@@ -144,25 +178,11 @@ export function GlobalHeader() {
               setNoticesOpen(false);
             }}
             aria-label="Account"
+            data-testid="account-menu"
           >
-            {studio.accountName.slice(0, 1).toUpperCase()}
+            {initial}
           </button>
-          {accountOpen ? (
-            <div className="absolute right-0 z-20 mt-2 w-72 rounded-[10px] bg-card p-3 shadow-xl" role="region" aria-label="Account">
-              <label className="flex flex-col gap-1 text-xs text-muted">
-                Display name
-                <input
-                  className="rounded-md border border-[var(--line)] bg-inset px-2 py-1.5 text-sm text-ink"
-                  value={studio.accountName}
-                  onChange={(event) => studio.setAccountName(event.target.value)}
-                />
-              </label>
-              <p className="mt-2 text-xs text-muted">Local profile on this device. No account provider is connected.</p>
-              <Link href="/connectors" className="mt-3 block text-sm text-accent" onClick={() => setAccountOpen(false)}>
-                Open connectors
-              </Link>
-            </div>
-          ) : null}
+          {accountOpen ? <AccountPanel onClose={() => setAccountOpen(false)} /> : null}
         </div>
       </div>
     </header>

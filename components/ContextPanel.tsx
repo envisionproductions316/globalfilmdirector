@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { CharacterProfile } from "@/components/characters/CharacterProfile";
+import { useAuth } from "@/lib/auth/AuthProvider";
+import { isProjectVisibleToUser } from "@/lib/auth/types";
 import { useStudio } from "@/lib/studio";
 import { FRAME_MS, TRACK_META, clipSpan, formatSeconds, formatTimecode, secondsToMs, trackMeta, type TrackId } from "@/lib/timeline";
 
@@ -12,9 +14,14 @@ const fieldClass = "rounded-md bg-inset px-2 py-2 text-sm text-ink";
 export function ContextPanel() {
   const pathname = usePathname();
   const studio = useStudio();
+  const auth = useAuth();
   const character = studio.selectedCharacter;
   const shot = studio.selectedShot;
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const visibleProjects = useMemo(
+    () => studio.projects.filter((project) => isProjectVisibleToUser(project, auth.user?.id ?? null)),
+    [studio.projects, auth.user?.id],
+  );
 
   return (
     <aside aria-label="Inspector" className="bg-rail px-4 py-5 text-ink lg:sticky lg:top-0 lg:max-h-screen lg:w-[320px] lg:overflow-y-auto">
@@ -22,7 +29,7 @@ export function ContextPanel() {
         <>
           <h2 className="m-0 text-base font-bold">Recent Projects</h2>
           <ul className="mt-3 flex list-none flex-col gap-2 p-0">
-            {studio.projects.map((project) => (
+            {visibleProjects.map((project) => (
               <li key={project.id}>
                 <button
                   type="button"

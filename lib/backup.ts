@@ -52,6 +52,22 @@ export function validateBackup(raw: unknown): { ok: true; backup: StudioBackup }
   };
 }
 
+/**
+ * Strip accidental auth/token fields from studio JSON before writing a backup.
+ * Tokens live in httpOnly cookies / Electron safeStorage — never in gfd-backup-v1.
+ */
+export function scrubAuthFromStudioSnapshot(studio: unknown): unknown {
+  if (!studio || typeof studio !== "object") return studio;
+  const clone = structuredClone(studio) as Record<string, unknown>;
+  const banned = ["accessToken", "refreshToken", "idToken", "password", "clientSecret", "authTokens", "sessionToken"];
+  for (const key of banned) delete clone[key];
+  if (clone.auth && typeof clone.auth === "object") {
+    const auth = clone.auth as Record<string, unknown>;
+    for (const key of banned) delete auth[key];
+  }
+  return clone;
+}
+
 export async function blobToBase64(blob: Blob) {
   const buffer = await blob.arrayBuffer();
   const bytes = new Uint8Array(buffer);

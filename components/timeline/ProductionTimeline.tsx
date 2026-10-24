@@ -6,6 +6,7 @@ import { SequencePlayer } from "@/components/timeline/SequencePlayer";
 import { Waveform } from "@/components/timeline/Waveform";
 import { useStudio } from "@/lib/studio";
 import { parseCaptions } from "@/lib/captions";
+import { base64ToUint8, getDesktopApi, guessMimeFromName } from "@/lib/desktop-bridge";
 import {
   FRAME_MS,
   ZOOM_MAX,
@@ -161,10 +162,45 @@ export function ProductionTimeline({ mode }: { mode: "edit" | "audio" }) {
     setPlaying(true);
   }
 
-  async function importFiles(files: FileList | null, preferred: TrackId) {
-    if (!files?.length) return;
+  async function importDesktopMedia(preferred: TrackId) {
+    const desktop = getDesktopApi();
+    if (!desktop) return false;
     const libraryOnly = studio.assetCategory === "assets";
-    for (const file of files) {
+    const open = await desktop.showOpenDialog({
+      title: libraryOnly ? "Import to My Assets" : "Import media",
+      properties: ["openFile", "multiSelections"],
+      filters: [
+        {
+          name: "Media",
+          extensions: libraryOnly
+            ? ["mp4", "webm", "mov", "mp3", "wav", "m4a", "ogg", "aac"]
+            : ["mp4", "webm", "mov", "mp3", "wav", "m4a", "ogg", "aac", "srt", "vtt"],
+        },
+      ],
+    });
+    if (open.canceled || !open.filePaths.length) {
+      setMessage("Import cancelled.");
+      return true;
+    }
+    const files: File[] = [];
+    for (const filePath of open.filePaths) {
+      const read = await desktop.readFile(filePath);
+      if (read.error || !read.base64) {
+        setMessage(read.error || `Could not read ${filePath}.`);
+        continue;
+      }
+      const name = read.name || filePath.split(/[/\\]/).pop() || "import.bin";
+      const bytes = base64ToUint8(read.base64);
+      files.push(new File([bytes], name, { type: guessMimeFromName(name) }));
+    }
+    if (files.length) await importFiles(files, preferred);
+    return true;
+  }
+
+  async function importFiles(files: ArrayLike<File> | null, preferred: TrackId) {
+    if (!files || files.length === 0) return;
+    const libraryOnly = studio.assetCategory === "assets";
+    for (const file of Array.from(files)) {
       if (/\.(srt|vtt)$/i.test(file.name)) {
         if (libraryOnly) {
           setMessage("Caption files go on the timeline. Switch to Media Library to import .srt / .vtt.");
@@ -420,30 +456,49 @@ export function ProductionTimeline({ mode }: { mode: "edit" | "audio" }) {
                 : "Takes from Capture and imported media. Import places on the timeline immediately."}
           </p>
           <div className="mt-3 flex flex-col gap-2">
-            <label className="text-xs text-muted">
-              {studio.assetCategory === "assets" ? "Import to My Assets" : "Import media"}
-              <input
-                className="mt-1 block w-full text-sm"
+            {getDesktopApi() ? (
+              <button
+                type="button"
+                className="h-9 rounded-[7px] bg-inset px-3 text-left text-[13px]"
                 data-testid={mode === "audio" ? "import-audio" : "import-media"}
-                type="file"
-                accept={
-                  studio.assetCategory === "assets"
-                    ? "video/mp4,video/webm,video/quicktime,audio/mpeg,audio/wav,audio/mp4,audio/webm,audio/ogg,audio/aac,.mp4,.webm,.mov,.mp3,.wav,.m4a,.ogg,.aac"
-                    : "video/mp4,video/webm,video/quicktime,audio/mpeg,audio/wav,audio/mp4,audio/webm,audio/ogg,audio/aac,.mp4,.webm,.mov,.mp3,.wav,.m4a,.ogg,.aac,.srt,.vtt"
-                }
-                multiple
-                onChange={(event) => {
+                onClick={() => {
                   const preferred =
                     mode === "audio"
                       ? studio.selectedAudioTrack === "sfx" || studio.selectedAudioTrack === "dialogue" || studio.selectedAudioTrack === "voice"
                         ? (studio.selectedAudioTrack as TrackId)
                         : "music"
                       : "video";
-                  void importFiles(event.target.files, preferred);
-                  event.target.value = "";
+                  void importDesktopMedia(preferred);
                 }}
-              />
-            </label>
+              >
+                {studio.assetCategory === "assets" ? "Import to My Assets…" : "Import media…"}
+              </button>
+            ) : (
+              <label className="text-xs text-muted">
+                {studio.assetCategory === "assets" ? "Import to My Assets" : "Import media"}
+                <input
+                  className="mt-1 block w-full text-sm"
+                  data-testid={mode === "audio" ? "import-audio" : "import-media"}
+                  type="file"
+                  accept={
+                    studio.assetCategory === "assets"
+                      ? "video/mp4,video/webm,video/quicktime,audio/mpeg,audio/wav,audio/mp4,audio/webm,audio/ogg,audio/aac,.mp4,.webm,.mov,.mp3,.wav,.m4a,.ogg,.aac"
+                      : "video/mp4,video/webm,video/quicktime,audio/mpeg,audio/wav,audio/mp4,audio/webm,audio/ogg,audio/aac,.mp4,.webm,.mov,.mp3,.wav,.m4a,.ogg,.aac,.srt,.vtt"
+                  }
+                  multiple
+                  onChange={(event) => {
+                    const preferred =
+                      mode === "audio"
+                        ? studio.selectedAudioTrack === "sfx" || studio.selectedAudioTrack === "dialogue" || studio.selectedAudioTrack === "voice"
+                          ? (studio.selectedAudioTrack as TrackId)
+                          : "music"
+                        : "video";
+                    void importFiles(event.target.files, preferred);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+            )}
             {mode === "audio" && studio.assetCategory !== "assets" ? (
               <button type="button" className="h-9 rounded-[7px] bg-accent px-3 text-[13px] font-bold text-on-accent" data-testid="record-narration" onClick={() => (recording ? stopNarration() : void startNarration())}>
                 {recording ? "Stop narration" : "Record narration"}

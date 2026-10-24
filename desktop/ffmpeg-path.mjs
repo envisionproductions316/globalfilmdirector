@@ -10,7 +10,13 @@ export function resolveFfmpegBinaries({ resourcesPath = "", projectRoot = "" } =
   const candidates = [];
 
   if (process.env.GFD_FFMPEG_PATH) {
-    candidates.push({ ffmpeg: process.env.GFD_FFMPEG_PATH, ffprobe: process.env.GFD_FFPROBE_PATH || "" });
+    const ffmpeg = process.env.GFD_FFMPEG_PATH;
+    let ffprobe = process.env.GFD_FFPROBE_PATH || "";
+    if (!ffprobe && ffmpeg) {
+      const sibling = path.join(path.dirname(ffmpeg), `ffprobe${exe}`);
+      if (existsSync(sibling)) ffprobe = sibling;
+    }
+    candidates.push({ ffmpeg, ffprobe });
   }
 
   const dirs = [
@@ -30,19 +36,19 @@ export function resolveFfmpegBinaries({ resourcesPath = "", projectRoot = "" } =
     }
   }
 
-  // Fallback: rely on PATH (dev machines with winget FFmpeg).
-  candidates.push({ ffmpeg: `ffmpeg${exe === ".exe" ? ".exe" : "ffmpeg"}`.replace("ffmpeg.exe.exe", "ffmpeg.exe"), ffprobe: `ffprobe${exe}` });
-  // Normalize PATH fallback names
-  candidates[candidates.length - 1] = { ffmpeg: "ffmpeg", ffprobe: "ffprobe" };
+  candidates.push({ ffmpeg: "ffmpeg", ffprobe: "ffprobe" });
 
   for (const entry of candidates) {
     if (!entry.ffmpeg) continue;
-    // Env / resource paths must exist; PATH names are accepted as-is.
-    if (entry.ffmpeg === "ffmpeg" || entry.ffmpeg === "ffprobe" || existsSync(entry.ffmpeg)) {
-      return {
-        ffmpeg: entry.ffmpeg,
-        ffprobe: entry.ffprobe || (entry.ffmpeg === "ffmpeg" ? "ffprobe" : ""),
-      };
+    const isPathName = entry.ffmpeg === "ffmpeg" || entry.ffmpeg === "ffprobe";
+    if (isPathName || existsSync(entry.ffmpeg)) {
+      let ffprobe = entry.ffprobe;
+      if (!ffprobe && !isPathName) {
+        const sibling = path.join(path.dirname(entry.ffmpeg), `ffprobe${exe}`);
+        if (existsSync(sibling)) ffprobe = sibling;
+      }
+      if (!ffprobe && isPathName) ffprobe = "ffprobe";
+      return { ffmpeg: entry.ffmpeg, ffprobe };
     }
   }
 

@@ -19,3 +19,7 @@ resources/ffmpeg/ffmpeg
 resources/ffmpeg/ffmpeg.exe
 resources/ffmpeg/ffprobe
 resources/ffmpeg/ffprobe.exe
+
+# Local Phase 5 preserve snapshots (do not commit)
+.phase5-preserve/
+

@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
+import { useAuth } from "@/lib/auth/AuthProvider";
+import { isProjectVisibleToUser } from "@/lib/auth/types";
 import { ASSET_CATEGORIES, useStudio, type AssetCategory } from "@/lib/studio";
 import { formatTimecode, timelineDuration } from "@/lib/timeline";
 
@@ -30,10 +32,15 @@ function defaultCategoryForPath(pathname: string, selectedAudioTrack: string): A
 
 export function NavigationRail() {
   const studio = useStudio();
+  const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const duration = timelineDuration(studio.clips);
   const focus = studio.studioMode === "director" ? DIRECTOR_FOCUS : STUDIO_FOCUS;
+  const visibleProjects = useMemo(
+    () => studio.projects.filter((project) => isProjectVisibleToUser(project, auth.user?.id ?? null)),
+    [studio.projects, auth.user?.id],
+  );
 
   // Keep the asset rail highlight in sync when the URL changes without a rail click
   // (header destinations, pipeline, deep links).
@@ -64,7 +71,7 @@ export function NavigationRail() {
             data-testid="rail-project"
             onChange={(event) => studio.setActiveProjectId(event.target.value)}
           >
-            {studio.projects.map((project) => (
+            {visibleProjects.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.title}
               </option>

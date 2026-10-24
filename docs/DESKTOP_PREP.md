@@ -1,6 +1,6 @@
 # Desktop preparation (pre-Electron)
 
-**Status:** Preparation complete — **Electron v1 implemented** (see [`DESKTOP.md`](DESKTOP.md)). Local test package only; **no public installer.**  
+**Status:** Preparation complete — **Electron v1 shipped for local Windows testing** (see [`DESKTOP.md`](DESKTOP.md)). Local `win-unpacked` package only; **no public installer.**  
 **Locked decisions (2026-10-23):** see §1.  
 **Related:** [`DESKTOP.md`](DESKTOP.md), [`PRE_DESKTOP_AUDIT.md`](PRE_DESKTOP_AUDIT.md), [`DEVELOPER_STATUS.md`](DEVELOPER_STATUS.md), [`MACHINE_TOOLS.md`](MACHINE_TOOLS.md).
 
@@ -110,23 +110,23 @@ Inspected working tree vs `origin/main` / HEAD before baseline. **Purpose groups
 3. **Desktop target:** migrate both stores into Electron `userData` (see §5).  
 4. **Never assume** `git commit` or OneDrive sync of the repo folder backs up IndexedDB.
 
-### Blocking gap
+### Backup status
 
-There is **no first-class in-app “Backup project + media”** yet. That is a **P0 before trusting desktop migration**. Until then, document manual DevTools backup for any production you care about.
+In-app **Backup projects + media** / **Restore backup** ships as `gfd-backup-v1` (Projects page). Prefer that over DevTools. Git still does **not** store IndexedDB blobs.
 
 ---
 
-## 5. How Electron v1 will preserve data & pipelines
+## 5. How Electron v1 preserves data & pipelines
 
-*(Design only — not implemented.)*
+*(Implemented for local Windows — details in [`DESKTOP.md`](DESKTOP.md).)*
 
 | Concern | Approach |
 |---------|----------|
 | Existing Next routes | Package **Next.js standalone** server; Electron `BrowserWindow` loads `http://127.0.0.1:<port>` |
-| FFmpeg export | Keep `/api/export` → `spawn(ffmpeg)`; bundle or discover FFmpeg sidecar on PATH |
-| QR phone upload | Keep `/mobile-capture` + `/api/capture/session`; advertise LAN URL; **not** live WebRTC in MVP |
-| Project JSON | Read/write `gfd.studio.v1` from Chromium partition first; migrate to `{userData}/gfd/studio.json` |
-| Media blobs | Migrate IDB → `{userData}/gfd/media/{id}` with same IDs so clips keep working |
+| FFmpeg export | Keep `/api/export` → `spawn(ffmpeg)`; discover FFmpeg sidecar / PATH |
+| QR phone upload | Keep `/mobile-capture` + `/api/capture/session`; sessions on disk under `GFD_DATA_DIR`; **not** live WebRTC |
+| Project JSON | Still `gfd.studio.v1` in Chromium partition; backup/restore via `gfd-backup-v1` |
+| Media blobs | Still IndexedDB `gfd-media`; included in backup format (userData file migration remains a later hardening step) |
 | Pose / MediaPipe | Keep browser path; later vendor WASM/model for offline |
 | Proposed Character Mirror features | Remain disabled/honest in UI; design stays Proposed in Figma |
 
@@ -208,13 +208,19 @@ Manifest updates live in `figma-manifest.json` under section notes for Current/P
 
 ---
 
-## 8. Next authorization gate
+## 8. Authorization gates
 
-Electron implementation may begin only after:
+### Electron (completed for local test package)
 
-1. This prep doc reviewed.  
-2. Git baseline SHA recorded.  
-3. Stakeholder confirms backup procedure for any precious IndexedDB takes.  
-4. Explicit “authorize Electron implementation” message.
+Electron implementation required: prep review, baseline SHA, backup procedure, and explicit authorization. Local desktop shell: [`DESKTOP.md`](DESKTOP.md).
 
-Until then: **do not add `desktop/`, do not add electron dependencies, do not change runtime packaging.**
+### Unified auth (next — mandatory)
+
+Before claiming shared website/desktop accounts:
+
+1. Approve identity provider (prefer Envision Cloud OIDC; paid/new Supabase only with approval) — [`AUTH_UNIFIED.md`](AUTH_UNIFIED.md).  
+2. Implement web + desktop PKCE flows and OS-secure token storage.  
+3. Ship account-linking for legacy local projects without deleting data.  
+4. Keep auth visually/textually separate from Envision Cloud sync.
+
+Re-audit: [`DESKTOP_REAUDIT.md`](DESKTOP_REAUDIT.md).

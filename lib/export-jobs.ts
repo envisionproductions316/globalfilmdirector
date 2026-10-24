@@ -254,6 +254,7 @@ async function finishJob(job: ExportJob, code: number | null, stderr: string) {
   if (code !== 0) {
     job.status = "error";
     job.error = stderr.trim() || "FFmpeg did not finish the export. No file was delivered.";
+    await rm(job.directory, { recursive: true, force: true }).catch(() => undefined);
     return;
   }
   try {
@@ -262,6 +263,7 @@ async function finishJob(job: ExportJob, code: number | null, stderr: string) {
     if (info.size < 32 || !probed.videoCodec) {
       job.status = "error";
       job.error = "FFmpeg finished without a playable video file.";
+      await rm(job.directory, { recursive: true, force: true }).catch(() => undefined);
       return;
     }
     job.bytes = info.size;
@@ -273,5 +275,6 @@ async function finishJob(job: ExportJob, code: number | null, stderr: string) {
   } catch {
     job.status = "error";
     job.error = "The export file could not be read. Nothing was delivered.";
+    await rm(job.directory, { recursive: true, force: true }).catch(() => undefined);
   }
 }
