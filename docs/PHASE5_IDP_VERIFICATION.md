@@ -59,7 +59,7 @@ Automated coverage: `envision-cloud` `tests/oidc-provider.test.mjs` (+ full suit
 | Gap | Notes |
 |-----|-------|
 | Manual matrix on real SMTP / email verify | Needs configured identity SMTP; GFD opens IdP UI for verify/resend |
-| Multi-replica shared OIDC adapter | Local file store is single-process only |
+| Live multi-replica Postgres OIDC | Phase 5C added Postgres + shared-file adapters; live HA still ops |
 | IndexedDB → filesystem media | Future desktop work |
 | Cloud media sync | Separate phase |
 | Public installer | Not authorized |

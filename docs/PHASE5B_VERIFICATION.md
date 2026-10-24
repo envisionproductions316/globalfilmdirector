@@ -53,9 +53,9 @@ Do **not** mark untested UI clicks as verified. Run AUTH_UNIFIED §6 against liv
 
 ## Remaining intentional blockers
 
-- Shared multi-replica OIDC adapter  
-- HTTPS + `ENVISION_GFD_WEB_CLIENT_SECRET` / GFD `AUTH_CLIENT_SECRET`  
-- SMTP for recovery / verification delivery  
+- HTTPS + `ENVISION_GFD_WEB_CLIENT_SECRET` / GFD `AUTH_CLIENT_SECRET` (ops)  
+- Real SMTP inbox delivery (ops; Envision outbox works locally — Phase 5C)  
+- Postgres multi-replica OIDC in live ops (`011_envision_oidc.sql` — Phase 5C)  
 - Node LTS for oidc-provider  
 - Public DNS / installer approval  
 - AUTH_UNIFIED §6 manual device matrix  

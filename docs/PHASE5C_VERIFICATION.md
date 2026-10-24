@@ -10,4 +10,5 @@
 | Manual browser / Electron UI matrix | Not re-run this pass |
 | Real SMTP delivery | N/A on GFD (IdP-side) |
 
-GFD code unchanged for Phase 5C hardening; regression confirms clients still work against Envision OIDC.
+GFD client code unchanged for Phase 5C hardening and gap-close; IdP mail-token / posture fixes live in Envision.
+`npm run test:phase5b` re-verified after gap-close (same `sub`, refresh rotate, revoke).
