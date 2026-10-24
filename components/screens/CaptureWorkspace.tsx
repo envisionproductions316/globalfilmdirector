@@ -484,6 +484,10 @@ export function CaptureWorkspace() {
         <div>
           <h1 className="m-0 text-[22px] font-bold lg:text-[26px]">04 · Character Mirror Capture</h1>
           <p className="mt-1 text-sm text-muted">Record a performance for a character, then place the raw take on the shared timeline.</p>
+          <p className="mt-2 max-w-3xl rounded-[var(--radius-md)] border border-[var(--line)] bg-inset/50 px-3 py-2 text-[12px] text-muted" data-testid="capture-capability-note">
+            Working now: browser webcam record, phone QR take upload, MediaPipe pose overlay, and 2D Live Sync silhouette when the model loads.
+            Not available yet: mesh retargeting, face/hand landmarkers, AI motion tools, live wireless viewfinder, or cloud sync of takes.
+          </p>
         </div>
         <p className="m-0 text-xs text-muted lg:hidden">{message}</p>
       </div>

@@ -80,16 +80,29 @@ export function DirectorWorkspace() {
         </p>
       </div>
 
-      <article className="mt-5 flex min-h-[430px] flex-col gap-4 rounded-[10px] bg-card px-5 py-4">
+      <article className="mt-5 flex min-h-[430px] flex-col gap-4 rounded-[var(--radius-lg)] bg-card px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="m-0 text-base font-bold">Director Conversation</h2>
           <p className="m-0 text-sm text-muted">Project: {studio.activeProject.title}</p>
         </div>
 
+        <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-inset/60 px-4 py-3" data-testid="film-brief">
+          <p className="m-0 text-xs font-bold tracking-wide text-muted">Film brief (your instructions)</p>
+          <p className="mt-2 mb-0 text-sm text-ink">
+            {studio.activeProject.directorNote?.trim() ||
+              studio.messages.find((entry) => entry.role === "user")?.text ||
+              "No brief yet — send a direction below. Suggestions from the Studio Director appear separately in the thread."}
+          </p>
+          <p className="mt-2 mb-0 text-[12px] text-muted">
+            {`Continuity: ${studio.scenes.length} scene${studio.scenes.length === 1 ? "" : "s"} · ${studio.shots.length} shot${studio.shots.length === 1 ? "" : "s"} · plan ${studio.planApproved ? "approved" : "awaiting approval"}`}
+          </p>
+        </div>
+
         <div
           ref={scroller}
-          className="flex max-h-[320px] min-h-[200px] flex-col gap-3 overflow-y-auto rounded-[9px] bg-inset px-4 py-4"
+          className="flex max-h-[320px] min-h-[200px] flex-col gap-3 overflow-y-auto rounded-[var(--radius-md)] bg-inset px-4 py-4"
           data-testid="director-thread"
+          aria-label="Direction thread — your messages and generated suggestions"
         >
           {studio.messages.length === 0 ? (
             <div className="rounded-[9px] bg-card px-4 py-4 text-sm text-muted">

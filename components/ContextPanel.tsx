@@ -28,26 +28,57 @@ export function ContextPanel() {
       {pathname === "/projects" ? (
         <>
           <h2 className="m-0 text-base font-bold">Recent Projects</h2>
+          {visibleProjects.length === 0 ? (
+            <p className="mt-3 rounded-[var(--radius-md)] bg-inset px-3 py-3 text-sm text-muted" data-testid="projects-empty">
+              No projects in this profile yet. Describe a film on the left and choose Create production.
+            </p>
+          ) : null}
           <ul className="mt-3 flex list-none flex-col gap-2 p-0">
-            {visibleProjects.map((project) => (
-              <li key={project.id}>
-                <button
-                  type="button"
-                  data-testid={`recent-project-${project.id}`}
-                  className={`w-full rounded-[9px] px-3 py-3 text-left ${project.id === studio.activeProjectId ? "bg-active" : "bg-inset"}`}
-                  onClick={() => {
-                    studio.setActiveProjectId(project.id);
-                    setPendingDeleteId(null);
-                  }}
-                >
-                  <strong className="block">{project.title}</strong>
-                  <span className="text-[13px] text-muted">
-                    {project.kind}
-                    {project.id === studio.activeProjectId ? " · Active" : " · Switch to this project"}
-                  </span>
-                </button>
-              </li>
-            ))}
+            {visibleProjects.map((project) => {
+              const active = project.id === studio.activeProjectId;
+              // studio.takes / studio.clips are scoped to the active project only.
+              const stage = active
+                ? studio.clips.length > 0
+                  ? "Edit / Export"
+                  : studio.takes.length > 0
+                    ? "Captured"
+                    : project.planApproved
+                      ? "Plan approved"
+                      : project.status
+                : project.planApproved
+                  ? "Plan approved"
+                  : project.status;
+              return (
+                <li key={project.id}>
+                  <button
+                    type="button"
+                    data-testid={`recent-project-${project.id}`}
+                    className={`w-full rounded-[var(--radius-md)] px-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ${active ? "bg-active" : "bg-inset"}`}
+                    onClick={() => {
+                      studio.setActiveProjectId(project.id);
+                      setPendingDeleteId(null);
+                    }}
+                  >
+                    <span
+                      className="mb-2 block h-14 w-full rounded-[var(--radius-sm)] bg-[linear-gradient(135deg,var(--inset),var(--active))]"
+                      aria-hidden
+                      data-testid={`project-thumb-${project.id}`}
+                    />
+                    <strong className="block truncate">{project.title}</strong>
+                    <span className="mt-1 block text-[13px] text-muted">
+                      {project.kind} · {stage}
+                      {active ? " · Active" : ""}
+                    </span>
+                    <span className="mt-1 block text-[11px] text-muted">
+                      {project.syncStatus === "local-only" || project.syncStatus === "linked-local"
+                        ? "Saved on this device"
+                        : project.syncStatus}
+                      {active ? " · Open" : " · Continue"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
           <label className="mt-4 flex flex-col gap-1 text-xs text-muted">
             Name

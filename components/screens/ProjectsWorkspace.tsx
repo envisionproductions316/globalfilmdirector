@@ -89,10 +89,16 @@ export function ProjectsWorkspace() {
           Create production
         </button>
 
-        <div className="mt-5 rounded-[9px] bg-inset px-4 py-3">
+        <div className="mt-5 rounded-[var(--radius-md)] bg-inset px-4 py-3" data-testid="active-project-summary">
           <p className="m-0 text-sm font-bold">Active: {studio.activeProject.title}</p>
           <p className="mt-1 text-[13px] text-muted">
-            {`${studio.activeProject.kind} · ${castCount} character${castCount === 1 ? "" : "s"} · ${takeCount} take${takeCount === 1 ? "" : "s"} · ${clipCount} clip${clipCount === 1 ? "" : "s"}`}
+            {`${studio.activeProject.kind} · ${studio.activeProject.status} · ${castCount} character${castCount === 1 ? "" : "s"} · ${takeCount} take${takeCount === 1 ? "" : "s"} · ${clipCount} clip${clipCount === 1 ? "" : "s"}`}
+          </p>
+          <p className="mt-1 text-[12px] text-muted">
+            {studio.activeProject.syncStatus === "local-only" || studio.activeProject.syncStatus === "linked-local"
+              ? "Local save only — not uploaded to Envision Cloud."
+              : `Sync label: ${studio.activeProject.syncStatus}`}
+            {studio.activeProject.planApproved ? " · Plan approved" : " · Plan not approved yet"}
           </p>
           <p className="mt-3 text-[13px] text-muted">Next step for this project</p>
           <div className="mt-2 flex flex-wrap gap-2">

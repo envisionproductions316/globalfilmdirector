@@ -67,29 +67,33 @@ export function GlobalHeader() {
                 if (item.href === "/capture") studio.setAssetCategory("characters");
                 if (item.href === "/export") studio.setAssetCategory("media");
               }}
-              className={`flex h-10 min-w-10 flex-col items-center justify-center rounded-md px-2 text-[10px] ${
+              className={`flex h-10 min-w-10 flex-col items-center justify-center rounded-[var(--radius-sm)] px-2 text-[10px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ${
                 active ? "bg-active text-ink" : "text-muted hover:bg-inset hover:text-ink"
               }`}
             >
-              <span className="text-[12px] font-bold leading-none">{item.icon}</span>
-              <span className="mt-0.5 hidden max-w-[4.5rem] truncate sm:block">{item.label}</span>
+              <span className="text-[12px] font-bold leading-none" aria-hidden>
+                {item.icon}
+              </span>
+              <span className="mt-0.5 max-w-[4.5rem] truncate">{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
-        <div className="flex rounded-md bg-inset p-1 text-[12px]">
+        <div className="flex rounded-md bg-inset p-1 text-[12px]" role="group" aria-label="Studio mode">
           <button
             type="button"
-            className={`rounded-sm px-2 py-1.5 ${studio.studioMode === "director" ? "bg-accent font-bold text-on-accent" : "text-muted"}`}
+            className={`rounded-sm px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ${studio.studioMode === "director" ? "bg-accent font-bold text-on-accent" : "text-muted"}`}
+            aria-pressed={studio.studioMode === "director"}
             onClick={() => setMode("director")}
           >
             Director Mode
           </button>
           <button
             type="button"
-            className={`rounded-sm px-2 py-1.5 ${studio.studioMode === "studio" ? "bg-accent font-bold text-on-accent" : "text-muted"}`}
+            className={`rounded-sm px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ${studio.studioMode === "studio" ? "bg-accent font-bold text-on-accent" : "text-muted"}`}
+            aria-pressed={studio.studioMode === "studio"}
             onClick={() => setMode("studio")}
           >
             Studio Mode
@@ -102,6 +106,7 @@ export function GlobalHeader() {
             className="min-h-8 rounded-md border border-[var(--line)] bg-canvas/40 px-2 text-xs text-ink"
             value={studio.status}
             onChange={(event) => studio.setStatus(event.target.value as ProductionStatus)}
+            aria-label="Production status"
           >
             {STATUSES.map((status) => (
               <option key={status}>{status}</option>
@@ -109,23 +114,33 @@ export function GlobalHeader() {
           </select>
         </label>
 
+        <p
+          className="m-0 hidden max-w-[11rem] truncate rounded-md bg-inset px-3 py-2 text-xs text-ink lg:block"
+          title={studio.activeProject.title}
+          data-testid="header-active-project"
+        >
+          <span className="text-muted">Project · </span>
+          {studio.activeProject.title}
+        </p>
+
         <button
           type="button"
-          className="min-h-9 rounded-md bg-inset px-3 text-xs text-muted"
+          className="min-h-9 rounded-md bg-inset px-3 text-xs text-muted outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
           title="Signed in does not mean projects are uploaded to Envision Cloud."
           data-testid="cloud-status-chip"
         >
-          {auth.user ? "Account · local device" : "Local only"}
+          {auth.user ? "Account · local device" : "Local only · offline OK"}
         </button>
 
         {visibleProjects.length > 1 ? (
           <label className="hidden flex-col gap-0.5 text-[10px] text-muted lg:flex">
-            Project
+            Switch
             <select
               className="min-h-8 max-w-[10rem] rounded-md border border-[var(--line)] bg-canvas/40 px-2 text-xs text-ink"
               value={studio.activeProjectId}
               onChange={(event) => studio.setActiveProjectId(event.target.value)}
               data-testid="header-project-switch"
+              aria-label="Switch active project"
             >
               {visibleProjects.map((project) => (
                 <option key={project.id} value={project.id}>
