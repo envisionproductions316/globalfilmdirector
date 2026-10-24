@@ -171,6 +171,43 @@ async function main() {
   assert.equal(web.claims.sub, desktop.claims.sub, "web and desktop must share the same sub");
   assert.equal(web.claims.sub, sessionUser.id, "OIDC sub must match Envision user id");
 
+  const refreshed = await fetch(discovery.token_endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: "gfd-desktop",
+      refresh_token: desktop.tokens.refresh_token,
+    }),
+  });
+  const refreshedTokens = await refreshed.json().catch(() => ({}));
+  if (refreshed.status !== 200) throw new Error(`refresh failed: ${JSON.stringify(refreshedTokens)}`);
+  assert.ok(refreshedTokens.access_token);
+  assert.ok(refreshedTokens.refresh_token);
+  assert.notEqual(refreshedTokens.refresh_token, desktop.tokens.refresh_token, "refresh token should rotate");
+
+  const revoke = await fetch(`${origin}/oauth/revoke`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: new URLSearchParams({
+      token: refreshedTokens.refresh_token,
+      token_type_hint: "refresh_token",
+      client_id: "gfd-desktop",
+    }),
+  });
+  assert.ok(revoke.status === 200 || revoke.status === 204, `revoke status ${revoke.status}`);
+
+  const afterRevoke = await fetch(discovery.token_endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: "gfd-desktop",
+      refresh_token: refreshedTokens.refresh_token,
+    }),
+  });
+  assert.notEqual(afterRevoke.status, 200, "revoked refresh token must be rejected");
+
   console.log(
     JSON.stringify(
       {
@@ -181,6 +218,8 @@ async function main() {
         webAud: web.claims.aud,
         desktopAud: desktop.claims.aud,
         sameSub: true,
+        refreshRotated: true,
+        revokeRejectedReuse: true,
       },
       null,
       2,

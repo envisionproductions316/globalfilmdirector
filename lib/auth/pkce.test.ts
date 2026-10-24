@@ -11,7 +11,7 @@ test("PKCE pair produces S256 challenge", async () => {
   assert.notEqual(pair.verifier, pair.challenge);
 });
 
-test("authorize URL includes PKCE params", () => {
+test("authorize URL includes PKCE params and nonce", () => {
   const url = buildAuthorizeUrl({
     authorizationEndpoint: "https://idp.example/authorize",
     clientId: "gfd",
@@ -19,11 +19,13 @@ test("authorize URL includes PKCE params", () => {
     scopes: "openid email",
     state: randomUrlSafe(8),
     codeChallenge: "challenge",
+    nonce: "nonce-value",
   });
   const parsed = new URL(url);
   assert.equal(parsed.searchParams.get("response_type"), "code");
   assert.equal(parsed.searchParams.get("code_challenge_method"), "S256");
   assert.equal(parsed.searchParams.get("code_challenge"), "challenge");
+  assert.equal(parsed.searchParams.get("nonce"), "nonce-value");
 });
 
 test("project visibility isolates other owners when signed in", () => {
@@ -38,4 +40,6 @@ test("sync labels stay honest", () => {
   assert.match(syncStatusLabel("local-only"), /Local/);
   assert.match(syncStatusLabel("linked-local"), /this device/);
   assert.doesNotMatch(syncStatusLabel("linked-local"), /Synced/);
+  assert.match(syncStatusLabel("cloud-synced"), /not available/);
+  assert.doesNotMatch(syncStatusLabel("cloud-synced"), /^Synced/);
 });

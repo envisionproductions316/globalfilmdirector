@@ -144,6 +144,18 @@ function pickFreePort() {
 
 function waitForCode(port, expectedState) {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        server.close();
+      } catch {
+        /* ignore */
+      }
+      fn(value);
+    };
     const server = createServer((req, res) => {
       try {
         const url = new URL(req.url || "/", `http://127.0.0.1:${port}`);
@@ -157,23 +169,18 @@ function waitForCode(port, expectedState) {
         const state = url.searchParams.get("state") || "";
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end("<html><body><p>You can close this window and return to Global Film Director.</p></body></html>");
-        server.close();
-        if (error) reject(new Error(error));
-        else if (!code || state !== expectedState) reject(new Error("Invalid auth callback."));
-        else resolve(code);
+        if (error) finish(reject, new Error(error));
+        else if (!code || state !== expectedState) finish(reject, new Error("Invalid auth callback."));
+        else finish(resolve, code);
       } catch (error) {
-        reject(error instanceof Error ? error : new Error("Auth callback failed."));
+        finish(reject, error instanceof Error ? error : new Error("Auth callback failed."));
       }
     });
-    server.listen(port, "127.0.0.1");
-    setTimeout(() => {
-      try {
-        server.close();
-      } catch {
-        /* ignore */
-      }
-      reject(new Error("Sign-in timed out. Try again."));
+    const timer = setTimeout(() => {
+      finish(reject, new Error("Sign-in timed out. Try again."));
     }, 5 * 60 * 1000);
+    server.listen(port, "127.0.0.1");
+    server.on("error", (error) => finish(reject, error));
   });
 }
 

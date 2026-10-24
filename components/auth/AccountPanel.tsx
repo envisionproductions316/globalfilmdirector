@@ -28,7 +28,19 @@ export function AccountPanel({ onClose }: { onClose: () => void }) {
           <p className="mt-2 text-sm font-bold" data-testid="account-email">
             {auth.user.email || auth.user.name}
           </p>
-          {!auth.user.emailVerified ? <p className="mt-1 text-xs text-muted">Email not verified yet (IdP).</p> : null}
+          {!auth.user.emailVerified ? (
+            <div className="mt-1">
+              <p className="m-0 text-xs text-muted">Email not verified yet (IdP).</p>
+              <button
+                type="button"
+                className="mt-1 text-left text-[12px] text-accent"
+                data-testid="header-verify-email"
+                onClick={() => void auth.openEmailVerification()}
+              >
+                Open IdP to verify / resend
+              </button>
+            </div>
+          ) : null}
           {unowned.length > 0 && !linkDismissed ? (
             <div className="mt-3 rounded-md bg-inset p-2" data-testid="link-local-wizard">
               <p className="m-0 text-xs text-muted">

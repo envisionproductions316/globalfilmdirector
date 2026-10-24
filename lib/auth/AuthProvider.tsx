@@ -18,6 +18,7 @@ type AuthContextValue = {
   signOut: () => Promise<void>;
   register: () => Promise<void>;
   openPasswordReset: () => Promise<void>;
+  openEmailVerification: () => Promise<void>;
   refresh: () => Promise<void>;
 };
 
@@ -145,25 +146,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.assign(url.toString());
   }, [config, desktop, origin, refresh]);
 
-  const openPasswordReset = useCallback(async () => {
-    // Envision first-party recovery UI lives on the account surface; override via env when customized.
-    const reset =
-      process.env.NEXT_PUBLIC_AUTH_PASSWORD_RESET_URL ||
-      (config.issuer ? `${config.issuer}/#signin` : "");
-    if (!config.configured && !desktop) {
-      setMessage(authNotConfiguredMessage());
-      return;
-    }
-    if (!reset) {
-      setMessage("Password reset URL is not configured (NEXT_PUBLIC_AUTH_PASSWORD_RESET_URL). Use your IdP email reset flow.");
-      return;
-    }
-    if (desktop) {
-      await desktop.openExternal(reset);
-      return;
-    }
-    window.open(reset, "_blank", "noopener,noreferrer");
-  }, [config, desktop]);
+  const openIdpAccount = useCallback(
+    async (kind: "reset" | "verify") => {
+      const configuredUrl =
+        kind === "reset"
+          ? process.env.NEXT_PUBLIC_AUTH_PASSWORD_RESET_URL
+          : process.env.NEXT_PUBLIC_AUTH_EMAIL_VERIFY_URL;
+      const fallback = config.issuer ? `${config.issuer}/#signin` : "";
+      const target = (configuredUrl || fallback || "").trim();
+      if (!config.configured && !desktop) {
+        setMessage(authNotConfiguredMessage());
+        return;
+      }
+      if (!target) {
+        setMessage(
+          kind === "reset"
+            ? "Password reset URL is not configured. Use your IdP email reset flow."
+            : "Email verification URL is not configured. Use your IdP account page.",
+        );
+        return;
+      }
+      if (desktop) {
+        await desktop.openExternal(target);
+        return;
+      }
+      window.open(target, "_blank", "noopener,noreferrer");
+    },
+    [config, desktop],
+  );
+
+  const openPasswordReset = useCallback(async () => openIdpAccount("reset"), [openIdpAccount]);
+  const openEmailVerification = useCallback(async () => openIdpAccount("verify"), [openIdpAccount]);
 
   const signOut = useCallback(async () => {
     setMessage("");
@@ -190,9 +203,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       register,
       openPasswordReset,
+      openEmailVerification,
       refresh,
     }),
-    [ready, config.configured, session, message, signIn, signOut, register, openPasswordReset, refresh],
+    [ready, config.configured, session, message, signIn, signOut, register, openPasswordReset, openEmailVerification, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

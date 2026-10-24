@@ -58,11 +58,12 @@ Automated coverage: `envision-cloud` `tests/oidc-provider.test.mjs` (+ full suit
 
 | Gap | Notes |
 |-----|-------|
-| Manual matrix on real SMTP / email verify | Needs configured identity SMTP |
+| Manual matrix on real SMTP / email verify | Needs configured identity SMTP; GFD opens IdP UI for verify/resend |
 | Multi-replica shared OIDC adapter | Local file store is single-process only |
 | IndexedDB → filesystem media | Future desktop work |
 | Cloud media sync | Separate phase |
 | Public installer | Not authorized |
+| Shell `PORT` vs `.env` | Envision: set `PORT=8000` in the process env so it matches `ENVISION_PUBLIC_ORIGIN` |
 
 ---
 
