@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test lib/continuity.test.ts lib/timeline.test.ts lib/director-apply.test.ts lib/backup.test.ts lib/auth/pkce.test.ts",
     "test:phase5b": "node scripts/phase5b-oidc-e2e.mjs",
+    "test:phase5d": "node scripts/phase5d-web-session.mjs",
     "check": "node scripts/check-ready.mjs",
     "ready": "npm run typecheck && npm test && npm run build && npm run check",
     "desktop": "npm run build && electron .",
